@@ -236,12 +236,17 @@
       transform: translateY(-18%);
     }
   }
+  /* Shifts by exactly one copy of the sponsor set, which the component
+     measures and passes as --ticker-shift. A percentage cannot work here:
+     the track holds however many copies are needed to overhang the screen,
+     so the distance that closes the loop is one copy, not a fixed fraction
+     of the whole track. The 50% fallback matches the old two-copy layout. */
   @keyframes ticker {
     from {
       transform: translate3d(0, 0, 0);
     }
     to {
-      transform: translate3d(-50%, 0, 0);
+      transform: translate3d(calc(-1 * var(--ticker-shift, 50%)), 0, 0);
     }
   }
   @keyframes drift-slow {

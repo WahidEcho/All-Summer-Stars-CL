@@ -43,6 +43,15 @@ interface TickerEntry {
   prefix?: string;
 }
 
+interface Metrics {
+  /** Width of one copy of the sponsor set, in px. */
+  groupWidth: number;
+  /** How many copies are tiled so the track always overhangs the band. */
+  copies: number;
+  /** Seconds for one copy to travel its own width. */
+  duration: number;
+}
+
 /** The seeded running order, used when no rows are supplied. */
 function defaultEntries(): TickerEntry[] {
   return SPONSOR_TICKER_ORDER.map((key: BrandAssetKey) => ({
@@ -112,22 +121,47 @@ export function SponsorTicker({
   const nominalLogo = logoHeight ?? Math.round(height * 0.6);
 
   const groupRef = useRef<HTMLDivElement>(null);
-  const [duration, setDuration] = useState<number | null>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [index, setIndex] = useState(0);
 
-  // Derive the loop duration from the measured width of one copy.
+  // Measure one copy of the set and the band it runs in, then work out how
+  // many copies the track needs. Two is only enough when a single copy is at
+  // least as wide as the screen; six logos on a 1920px wall are not, and the
+  // track would run dry and show the loop restarting.
   useIsomorphicLayoutEffect(() => {
-    const node = groupRef.current;
-    if (!node || reduced) return;
+    const groupNode = groupRef.current;
+    const viewportNode = viewportRef.current;
+    if (!groupNode || !viewportNode || reduced) return;
 
     const measure = () => {
-      const width = node.getBoundingClientRect().width;
-      if (width > 0) setDuration(Math.max(8, width / Math.max(speed, 1)));
+      const groupWidth = groupNode.getBoundingClientRect().width;
+      const viewportWidth = viewportNode.getBoundingClientRect().width;
+      if (groupWidth <= 0) return;
+
+      // One copy is scrolling off the left at any moment, so the remaining
+      // copies must still cover the band: ceil(viewport / copy) + 1.
+      const copies = Math.max(2, Math.ceil(viewportWidth / groupWidth) + 1);
+
+      setMetrics((previous) =>
+        previous &&
+        Math.abs(previous.groupWidth - groupWidth) < 0.5 &&
+        previous.copies === copies
+          ? previous
+          : {
+              groupWidth,
+              copies,
+              // Duration tracks one copy, so the crawl keeps the same physical
+              // speed no matter how many copies are tiled behind it.
+              duration: Math.max(8, groupWidth / Math.max(speed, 1)),
+            },
+      );
     };
 
     measure();
     const observer = new ResizeObserver(measure);
-    observer.observe(node);
+    observer.observe(groupNode);
+    observer.observe(viewportNode);
     return () => observer.disconnect();
   }, [reduced, speed, entries.length, nominalLogo, gap]);
 
@@ -180,16 +214,18 @@ export function SponsorTicker({
     );
   }
 
-  const group = (duplicate: boolean) => (
+  // Only the first copy is real to assistive tech; the rest are visual tiling.
+  const group = (copy: number) => (
     <div
-      ref={duplicate ? undefined : groupRef}
-      aria-hidden={duplicate || undefined}
+      key={`copy-${copy}`}
+      ref={copy === 0 ? groupRef : undefined}
+      aria-hidden={copy === 0 ? undefined : true}
       className="flex shrink-0 items-center"
       style={{ gap, paddingRight: gap }}
     >
       {entries.map((entry) => (
         <SponsorLogo
-          key={`${duplicate ? 'dup-' : ''}${entry.key}`}
+          key={`${copy}-${entry.key}`}
           sponsor={entry.item}
           prefix={entry.prefix}
           height={nominalLogo}
@@ -197,6 +233,10 @@ export function SponsorTicker({
       ))}
     </div>
   );
+
+  // Render two copies on the first pass so there is something to measure, then
+  // settle on however many the band actually needs.
+  const copies = metrics?.copies ?? 2;
 
   return (
     <div
@@ -206,22 +246,29 @@ export function SponsorTicker({
       role="region"
       aria-label="Event partners and sponsors"
     >
-      <div className="u-edge-fade-x relative flex w-full overflow-hidden">
+      <div ref={viewportRef} className="u-edge-fade-x relative flex w-full overflow-hidden">
         <div
           data-motion="loop"
           className={cn(
             'flex w-max items-center will-change-transform',
-            duration != null && 'animate-ticker',
+            metrics != null && 'animate-ticker',
             pauseOnHover && 'hover:[animation-play-state:paused]',
           )}
           style={
-            duration != null
-              ? ({ '--ticker-duration': `${duration.toFixed(2)}s` } as CSSProperties)
+            metrics != null
+              ? ({
+                  '--ticker-duration': `${metrics.duration.toFixed(2)}s`,
+                  '--ticker-shift': `${metrics.groupWidth.toFixed(2)}px`,
+                  // Set outright as well: the duration inside the `animation`
+                  // shorthand resolved to its fallback rather than the measured
+                  // value, which left the crawl running at a fixed 40s instead
+                  // of the requested px/sec.
+                  animationDuration: `${metrics.duration.toFixed(2)}s`,
+                } as CSSProperties)
               : undefined
           }
         >
-          {group(false)}
-          {group(true)}
+          {Array.from({ length: copies }, (_, copy) => group(copy))}
         </div>
       </div>
     </div>
