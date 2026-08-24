@@ -113,9 +113,29 @@ npm run lint
 
 ## Deployment
 
-Deploy to Vercel with the same environment variables. After deploying, set
-`NEXT_PUBLIC_SITE_URL` to the production origin and point the QR target at it in
-`/admin/setup/event` — the QR must never point at a preview URL.
+Repository: `WahidEcho/All-Summer-Stars-CL` (private)
+Vercel project: `swanlake-football-stars` → https://swanlake-football-stars.vercel.app
+
+Every push to `main` deploys automatically. Functions run in `dub1` (Dublin) so they sit
+beside the Supabase project in eu-west-1 — see `vercel.json`.
+
+### One-time: environment variables
+
+The deployment serves, but shows no data until the Supabase credentials are set. From this
+directory:
+
+```bash
+vercel login && vercel link && npm run vercel:env && vercel --prod
+```
+
+`npm run vercel:env` reads `.env.local` and uploads each value to production, preview and
+development, so no secret has to be pasted by hand. Alternatively add them under
+Project → Settings → Environment Variables: `NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_EVENT_SLUG`,
+`NEXT_PUBLIC_SITE_URL`.
+
+Then point the QR at the production origin in `/admin/setup/event` — it must never point
+at a preview URL.
 
 For a custom domain, add a CNAME in the Zoho DNS zone pointing at Vercel.
 
