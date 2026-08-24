@@ -59,12 +59,21 @@ export function useDisplayState(
   /** Channel name, and the key this surface reports connection health under. */
   const source = `display:${slug}`;
   const mounted = useRef(true);
+  /**
+   * The resolved event id, for filtering pushed rows. The subscription hears
+   * every display_state change in the database — the production wall and a
+   * rehearsal wall share the table — and applying a foreign event's row put a
+   * rehearsal scene, pinned to rounds production does not have, onto the real
+   * wall. A push is only applied once it is known to belong to this event.
+   */
+  const eventIdRef = useRef<string | null>(null);
 
   const fetchRow = useCallback(async (): Promise<void> => {
     if (!enabled) return;
     try {
       const db = supabase() as unknown as Db;
       const eventId = await getEventId(db, slug);
+      eventIdRef.current = eventId;
       const next = await getDisplayState(db, eventId);
       if (!mounted.current) return;
       setRow(next);
@@ -101,9 +110,12 @@ export function useDisplayState(
       { event: '*', schema: 'public', table: 'display_state' },
       (payload: RealtimePostgresChangesPayload<DisplayStateRow>) => {
         const raw = payload.new as Partial<DisplayStateRow> | undefined;
-        // Apply the pushed row straight away — a scene cut cannot wait for a
-        // round trip — then let the next read reconcile anything odd.
-        if (raw && raw.id) {
+        const own = eventIdRef.current;
+        // Another event's cut is not our business — not even worth a refetch.
+        if (raw?.event_id && own && raw.event_id !== own) return;
+        // Apply an own-event push straight away — a scene cut cannot wait for
+        // a round trip — then let the next read reconcile anything odd.
+        if (raw && raw.id && raw.event_id && raw.event_id === own) {
           const next = raw as DisplayStateRow;
           setRow((current) =>
             current && Number(next.revision) < Number(current.revision) ? current : next,
@@ -111,6 +123,8 @@ export function useDisplayState(
           setLoading(false);
           reportDataConfirmed();
         } else {
+          // Truncated payload, or our event id is not resolved yet: read
+          // through instead of guessing.
           void fetchRow();
         }
       },
@@ -136,6 +150,16 @@ export function useDisplayState(
   }, [enabled, source, fetchRow]);
 
   useEffect(() => registerConnectionRetry(() => void fetchRow()), [fetchRow]);
+
+  // Safety-net poll. The scene cut is the one message the wall must never
+  // miss, and a websocket can die without an error event. Fifteen seconds of
+  // lag on a lost socket is survivable; a wall frozen on the previous round
+  // until someone finds a keyboard is not.
+  useEffect(() => {
+    if (!enabled) return;
+    const id = window.setInterval(() => void fetchRow(), 15_000);
+    return () => window.clearInterval(id);
+  }, [enabled, fetchRow]);
 
   return {
     displayState: row,
