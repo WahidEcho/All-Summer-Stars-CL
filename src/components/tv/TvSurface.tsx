@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 
 import { EventMark } from '@/components/brand';
 import { useDisplayState, useEventSnapshot } from '@/lib/hooks';
@@ -12,6 +12,7 @@ import { SceneRouter } from '@/components/tv/SceneRouter';
 import { LoadingDots } from '@/components/tv/parts/LoadingDots';
 import { buildSceneModel } from '@/components/tv/scene-model';
 import { resolveCeremonyPhase, type CeremonyPhase } from '@/components/tv/constants';
+import { useAutoDirector } from '@/components/tv/use-auto-director';
 
 /** A forced, database-free rendering — the `?scene=` QA route. */
 export interface TvSampleOverride {
@@ -190,16 +191,49 @@ export function TvSurface({
     useDisplayState({ initial: initialDisplay, enabled: live, slug });
 
   const activePayload = preview && previewScene ? previewPayload : programPayload;
+  const activeSceneName: DisplayScene = preview ? (previewScene ?? programScene) : programScene;
+
+  // Scene AUTO: the wall follows the scoring controller by itself. The
+  // director needs a snapshot before it can speak, so the first client render
+  // may briefly use the operator payload's pins; the director's own pins take
+  // over on the next pass and the snapshot re-reads for them.
+  const autoActive = live && activeSceneName === 'auto';
+
   const pinnedChallengeId = readId(activePayload, 'challengeId');
   const pinnedRoundId = readId(activePayload, 'roundId');
+
+  const [directorPins, setDirectorPins] = useState<{
+    challengeId?: string;
+    roundId?: string;
+  }>({});
 
   const { snapshot } = useEventSnapshot({
     initial: initialSnapshot,
     enabled: live,
     slug,
-    challengeId: pinnedChallengeId,
-    roundId: pinnedRoundId,
+    challengeId: autoActive ? directorPins.challengeId : pinnedChallengeId,
+    roundId: autoActive ? directorPins.roundId : pinnedRoundId,
   });
+
+  const directed = useAutoDirector(snapshot, autoActive);
+
+  // Feed the director's pins back into the snapshot read, so a held ROUND
+  // RESULT shows the round that was just published rather than whatever the
+  // auto-detection has already moved on to.
+  useEffect(() => {
+    if (!autoActive) return;
+    const next = {
+      challengeId: readId(directed?.payload ?? {}, 'challengeId'),
+      roundId: readId(directed?.payload ?? {}, 'roundId'),
+    };
+    // The pins mirror the director's output; the equality guard stops cascades.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDirectorPins((current) =>
+      current.challengeId === next.challengeId && current.roundId === next.roundId
+        ? current
+        : next,
+    );
+  }, [autoActive, directed]);
 
   useScreenWakeLock(true);
 
@@ -226,11 +260,13 @@ export function TvSurface({
   // room can already see so the surface is never empty between line-ups.
   const scene: DisplayScene = sample
     ? sample.scene
-    : preview
-      ? (previewScene ?? programScene)
-      : programScene;
+    : autoActive && directed
+      ? directed.scene
+      : preview
+        ? (previewScene ?? programScene)
+        : programScene;
 
-  const livePayload = activePayload;
+  const livePayload = autoActive && directed ? directed.payload : activePayload;
   const payload: Record<string, unknown> = useMemo(
     () =>
       sample

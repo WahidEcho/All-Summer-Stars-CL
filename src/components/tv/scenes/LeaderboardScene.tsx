@@ -167,32 +167,63 @@ export function LeaderboardScene({ model, payload }: SceneProps) {
                   ) : null}
                 </div>
 
-                <div className="flex min-h-0 w-full flex-1 items-stretch gap-4">
-                  {tier.players.map((player) => {
-                    const team = player.teamCode ? snapshot.teamsByCode[player.teamCode] : null;
-                    return (
-                    <div key={player.id} className="min-w-0 flex-1">
-                      <PodiumCard
-                        player={player}
-                        place={tier.rank}
-                        points={player.regularPoints}
-                        stats={penaltyStats(player)}
-                        teamColor={team?.color}
-                        teamCode={player.teamCode}
-                        teamName={
-                          [player.slotLabel, team?.short_name ?? team?.name]
-                            .filter(Boolean)
-                            .join(' · ') || undefined
-                        }
-                        headline={tier.rank === 1 ? 'LEADER' : undefined}
-                        size={tier.rank === 1 && !joint ? 'lg' : 'md'}
-                        revealed={revealed}
-                        delay={buildup ? 0 : (3 - tier.rank) * 0.12}
-                      />
-                    </div>
-                    );
-                  })}
-                </div>
+                {/* Up to three players share a step as podium cards. A wider
+                    tie — six players once shared #2 in a rehearsal — has no
+                    room for portrait cards at all: the surnames were breaking
+                    mid-word into unreadable stacks. From four players up the
+                    tier becomes a two-column list of compact rows instead. */}
+                {tier.players.length <= 3 ? (
+                  <div className="flex min-h-0 w-full flex-1 items-stretch gap-4">
+                    {tier.players.map((player) => {
+                      const team = player.teamCode ? snapshot.teamsByCode[player.teamCode] : null;
+                      return (
+                        <div key={player.id} className="min-w-0 flex-1">
+                          <PodiumCard
+                            player={player}
+                            place={tier.rank}
+                            points={player.regularPoints}
+                            stats={penaltyStats(player)}
+                            teamColor={team?.color}
+                            teamCode={player.teamCode}
+                            teamName={
+                              [player.slotLabel, team?.short_name ?? team?.name]
+                                .filter(Boolean)
+                                .join(' · ') || undefined
+                            }
+                            headline={tier.rank === 1 ? 'LEADER' : undefined}
+                            size={tier.rank === 1 && !joint ? 'lg' : 'md'}
+                            revealed={revealed}
+                            delay={buildup ? 0 : (3 - tier.rank) * 0.12}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div
+                    className="grid min-h-0 w-full flex-1 content-center gap-3"
+                    style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}
+                  >
+                    {tier.players.map((player) => {
+                      const team = player.teamCode ? snapshot.teamsByCode[player.teamCode] : null;
+                      return (
+                        <CompactPlayerCard
+                          key={player.id}
+                          player={player}
+                          rank={tier.rank}
+                          sharedRank
+                          points={player.regularPoints}
+                          teamColor={team?.color}
+                          teamCode={player.teamCode}
+                          teamName={team?.short_name ?? team?.name ?? undefined}
+                          status={penaltyChip(player)}
+                          size="lg"
+                          emphasis="default"
+                        />
+                      );
+                    })}
+                  </div>
+                )}
               </motion.div>
             );
           })}
@@ -210,10 +241,10 @@ export function LeaderboardScene({ model, payload }: SceneProps) {
           </div>
 
           <ol
-            className="grid min-h-0 flex-1 gap-x-5 gap-y-3"
+            className="grid min-h-0 flex-1 content-start gap-x-5 gap-y-4"
             style={{
-              gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-              gridAutoRows: 'minmax(0, 1fr)',
+              gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+              gridAutoRows: 'max-content',
             }}
           >
             {lower.slice(0, 8).map((player) => {
@@ -243,9 +274,8 @@ export function LeaderboardScene({ model, payload }: SceneProps) {
                     teamCode={player.teamCode}
                     teamName={team?.short_name ?? team?.name ?? undefined}
                     status={penaltyChip(player)}
-                    size="md"
+                    size="lg"
                     emphasis="default"
-                    className="h-full"
                   />
                 </motion.li>
               );

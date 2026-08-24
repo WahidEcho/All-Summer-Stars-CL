@@ -45,12 +45,11 @@ export function SceneRouter(props: SceneProps) {
       return <LeaderboardScene {...props} />;
     case 'ceremony':
       return <CeremonyScene {...props} />;
+    // 'auto' is resolved by the director inside TvSurface and should never
+    // reach the router; if it somehow does, the holding slate is the one
+    // composition that is always safe to show in front of a crowd.
+    case 'auto':
     default: {
-      // An unknown scene value can only come from a hand-edited database row.
-      // The holding slate is the one composition that is always safe to show in
-      // front of a crowd, so that is what an unrecognised value falls back to.
-      const exhaustive: never = props.scene;
-      void exhaustive;
       return <HoldingScene {...props} scene="holding" />;
     }
   }

@@ -41,6 +41,17 @@ export interface SceneDescriptor {
 
 export const SCENES: SceneDescriptor[] = [
   {
+    scene: 'auto',
+    cue: '00',
+    title: 'AUTO — follow the show',
+    purpose:
+      'The wall runs itself off the scoring controller: lineups on a challenge start, ' +
+      'head-to-head for ten seconds, the live round until the result is published, the ' +
+      'result held until the next round starts, and the 5v5 end to end. Take manual ' +
+      'control back for the ceremony.',
+    fields: [],
+  },
+  {
     scene: 'holding',
     cue: '01',
     title: 'Holding screen',

@@ -38,6 +38,8 @@ export type LedgerEntryType =
   | 'manual_adjustment';
 
 export type DisplayScene =
+  // The wall follows the scoring controller by itself; see use-auto-director.
+  | 'auto'
   | 'holding'
   | 'lineups'
   | 'head_to_head'

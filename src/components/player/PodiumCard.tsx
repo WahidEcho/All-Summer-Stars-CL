@@ -128,7 +128,7 @@ export function PodiumCard({
       ) : null}
 
       <div className="relative z-10 min-h-0 flex-1">
-        <PlayerPhoto player={player} fit="cover" />
+        <PlayerPhoto player={player} fit="contain" />
       </div>
 
       <div className="relative z-20 flex flex-col items-center gap-[0.5em] px-[7%] pb-[5%] text-center">
