@@ -64,6 +64,44 @@ export interface UseEventSnapshotResult {
   refresh: () => Promise<void>;
 }
 
+const FAILED_RETRY_MS = 2_500;
+const API_TIMEOUT_MS = 12_000;
+
+/**
+ * Read the snapshot through /api/snapshot — one round trip, assembled in the
+ * deployment's own region. Falls back to assembling it in the browser when the
+ * route itself is unreachable, so the surface still works against a dev server
+ * that predates the route, or when only the API layer is having a bad minute.
+ */
+async function fetchSnapshotViaApi(opts: {
+  slug: string;
+  challengeId?: string;
+  roundId?: string;
+}): Promise<EventSnapshot> {
+  const params = new URLSearchParams({ event: opts.slug });
+  if (opts.challengeId) params.set('challengeId', opts.challengeId);
+  if (opts.roundId) params.set('roundId', opts.roundId);
+
+  try {
+    const controller = new AbortController();
+    const cutoff = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+    const response = await fetch(`/api/snapshot?${params.toString()}`, {
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+    clearTimeout(cutoff);
+    if (!response.ok) throw new Error(`snapshot API ${response.status}`);
+    return (await response.json()) as EventSnapshot;
+  } catch {
+    const db = supabase() as unknown as Db;
+    return getEventSnapshot(db, {
+      slug: opts.slug,
+      challengeId: opts.challengeId,
+      roundId: opts.roundId,
+    });
+  }
+}
+
 export function useEventSnapshot(
   options: UseEventSnapshotOptions = {},
 ): UseEventSnapshotResult {
@@ -88,6 +126,7 @@ export function useEventSnapshot(
   const queued = useRef(false);
   const mounted = useRef(true);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retry = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchSnapshot = useCallback(async (): Promise<void> => {
     if (!enabled) return;
@@ -103,8 +142,13 @@ export function useEventSnapshot(
       do {
         queued.current = false;
         try {
-          const db = supabase() as unknown as Db;
-          const next = await getEventSnapshot(db, { slug, challengeId, roundId });
+          // One request, assembled server-side beside the database. Building
+          // the snapshot in the browser meant a dozen Supabase calls per
+          // refresh, and on a flaky venue connection one lost call threw the
+          // whole refresh away — the wall then advanced scenes with data a
+          // round behind. The old client-side assembly remains the fallback
+          // so a hiccup in the API route cannot blind the surface either.
+          const next = await fetchSnapshotViaApi({ slug, challengeId, roundId });
           if (!mounted.current) return;
           setSnapshot(next);
           setError(null);
@@ -119,6 +163,13 @@ export function useEventSnapshot(
           );
           setLoading(false);
           reportConnectionTrouble(source);
+          // A failed refresh retries on its own, quickly — waiting for the
+          // 30-second poll is how a wall ends up a full round behind the show.
+          if (retry.current) clearTimeout(retry.current);
+          retry.current = setTimeout(() => {
+            retry.current = null;
+            void fetchSnapshot();
+          }, FAILED_RETRY_MS);
         }
       } while (queued.current && mounted.current);
     } finally {
@@ -141,6 +192,7 @@ export function useEventSnapshot(
     return () => {
       mounted.current = false;
       if (debounce.current) clearTimeout(debounce.current);
+      if (retry.current) clearTimeout(retry.current);
     };
   }, [fetchSnapshot]);
 
