@@ -5,14 +5,26 @@ import type { PlayerRow, RankedPlayer, TeamCode } from '@/lib/types';
 /** Anything the card family accepts: a raw row, or a row plus standings. */
 export type PlayerLike = PlayerRow | RankedPlayer;
 
-/** True when the player carries standings data (rank, totals). */
-export function isRanked(player: PlayerLike): player is RankedPlayer {
-  return 'totalPoints' in player && typeof (player as RankedPlayer).totalPoints === 'number';
+/**
+ * True when the player carries standings data (rank, totals).
+ *
+ * Tolerates null/undefined by design. During a scene cut the pinned round and
+ * the snapshot can be one message apart, and a card briefly holds no player.
+ * The `in` operator throws on null — that exact throw took /live down in
+ * production and later surfaced in the TV bundle — so the nullish case is
+ * answered here, once, instead of by every caller remembering to guard.
+ */
+export function isRanked(player: PlayerLike | null | undefined): player is RankedPlayer {
+  return (
+    player != null &&
+    'totalPoints' in player &&
+    typeof (player as RankedPlayer).totalPoints === 'number'
+  );
 }
 
 /** `display_name` if the admin set one, otherwise the full name. */
-export function displayNameOf(player: PlayerLike): string {
-  const name = player.display_name?.trim() || player.full_name?.trim() || '';
+export function displayNameOf(player: PlayerLike | null | undefined): string {
+  const name = player?.display_name?.trim() || player?.full_name?.trim() || '';
   return name;
 }
 
@@ -30,7 +42,7 @@ export interface NameParts {
  * Single-word names ("Ronaldinho", "PLAYER A3") put everything on the big
  * line rather than inventing a first name.
  */
-export function nameParts(player: PlayerLike): NameParts {
+export function nameParts(player: PlayerLike | null | undefined): NameParts {
   const full = displayNameOf(player);
   const words = full.split(/\s+/).filter(Boolean);
   if (words.length <= 1) return { first: '', last: words[0] ?? '', full };
@@ -38,7 +50,7 @@ export function nameParts(player: PlayerLike): NameParts {
 }
 
 /** Up to two initials, for the photo-less fallback. Never empty. */
-export function initialsOf(player: PlayerLike): string {
+export function initialsOf(player: PlayerLike | null | undefined): string {
   const full = displayNameOf(player);
   const words = full.split(/\s+/).filter(Boolean);
   if (words.length === 0) return '?';
@@ -51,22 +63,22 @@ export function initialsOf(player: PlayerLike): string {
 }
 
 /** Total points, or `null` when the caller passed a bare `PlayerRow`. */
-export function totalPointsOf(player: PlayerLike): number | null {
+export function totalPointsOf(player: PlayerLike | null | undefined): number | null {
   return isRanked(player) ? player.totalPoints : null;
 }
 
 /** Overall rank, or `null` for a bare `PlayerRow`. */
-export function rankOf(player: PlayerLike): number | null {
+export function rankOf(player: PlayerLike | null | undefined): number | null {
   return isRanked(player) ? player.rank : null;
 }
 
 /** Team code, or `null` for a bare `PlayerRow`. */
-export function teamCodeOf(player: PlayerLike): TeamCode | null {
+export function teamCodeOf(player: PlayerLike | null | undefined): TeamCode | null {
   return isRanked(player) ? player.teamCode : null;
 }
 
 /** Slot label (`A3`), or `null` for a bare `PlayerRow`. */
-export function slotLabelOf(player: PlayerLike): string | null {
+export function slotLabelOf(player: PlayerLike | null | undefined): string | null {
   return isRanked(player) ? player.slotLabel : null;
 }
 
@@ -98,15 +110,15 @@ export function firstNameScale(first: string): number {
  * Focal point for a portrait, as a CSS `object-position`. Defaults to the
  * upper third, which is where a football portrait's face usually sits.
  */
-export function focalPosition(player: PlayerLike): string {
-  const x = Number.isFinite(player.focal_x) ? player.focal_x : 0.5;
-  const y = Number.isFinite(player.focal_y) ? player.focal_y : 0.32;
+export function focalPosition(player: PlayerLike | null | undefined): string {
+  const x = player && Number.isFinite(player.focal_x) ? player.focal_x : 0.5;
+  const y = player && Number.isFinite(player.focal_y) ? player.focal_y : 0.32;
   return `${(x * 100).toFixed(1)}% ${(y * 100).toFixed(1)}%`;
 }
 
 /** The best available portrait, preferring a dedicated cut-out. */
-export function portraitSrc(player: PlayerLike): string | null {
-  return player.portrait_url || player.photo_url || null;
+export function portraitSrc(player: PlayerLike | null | undefined): string | null {
+  return player?.portrait_url || player?.photo_url || null;
 }
 
 // ---------------------------------------------------------------------------
