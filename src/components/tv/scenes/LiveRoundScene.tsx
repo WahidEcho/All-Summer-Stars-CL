@@ -82,6 +82,30 @@ interface LiveSideProps {
 /**
  * One player on the live round screen: portrait, identity, their own attempt
  * history, and the `+N` that leaves them on its way to the round score.
+ *
+ * ## Why the identity is stacked under the portrait, not laid over it
+ *
+ * design.md screen 03 and design_2.md both read the column top-down as
+ * `PHOTO → NAME → ROUND SCORE → TOTAL → RANK`, and the real photographs make
+ * that the only workable order. The supplied portraits are tight
+ * head-and-shoulders studio shots — roughly 1120x1400, hair at ~4% of the
+ * frame, chin at ~70-78% — so a name plate laid over the bottom of the column
+ * does not land on a torso the way it would on a full-length cut-out. It lands
+ * on the player's mouth. Measured on the wall's own two portraits, the plate's
+ * top edge sat at 55% of the photograph while the chins were at 70% and 78%:
+ * both players were being cut off exactly where the brief said they must not
+ * be, and the gradient above the plate washed out whatever the plate itself
+ * did not cover.
+ *
+ * So the portrait gets its own bounded box and the identity gets its own row
+ * beneath it. Nothing overlaps, so nothing can be cropped by furniture.
+ *
+ * The portrait is drawn `contain` rather than `cover` for the same reason: at
+ * full column width these portraits render ~870px tall against a column that
+ * has ~690px to give, so `cover` must throw away either the hair or the chin no
+ * matter where the focal point puts it. `contain` fits the whole head every
+ * time, for any photograph the organisers upload, and the stored focal point
+ * still decides what is favoured if a future photo does need cropping.
  */
 function LiveSide({
   side,
@@ -96,20 +120,32 @@ function LiveSide({
   provisional,
 }: LiveSideProps) {
   const align = side === 'left' ? 'start' : 'end';
+  const slot = player ? slotLabelOf(player) : null;
 
   return (
     <div
       data-live-round-side={code}
       data-active={active || undefined}
       style={teamAccentVars(team.color, code)}
-      className="relative flex h-full min-w-0 flex-col"
+      className="relative flex h-full min-h-0 min-w-0 flex-col"
     >
       {player ? (
         <>
-          <PlayerGhost player={player} placement={side} scale={1.05} />
+          {/* The portrait box takes whatever height the identity row leaves.
+              `min-h-0` is what lets it give that height up: without it the
+              flex item floors at its content's intrinsic size and a 1120x1400
+              photograph drags the column past the bottom of the canvas. */}
+          <div className="relative z-10 min-h-0 flex-1 overflow-hidden">
+            {/* The ghost layer belongs to the portrait box, not to the whole
+                column. It anchors its surname to 6% off its parent's foot, so
+                parented to the column it lands squarely behind the real name
+                and the attempt rail — two sets of letterforms fighting in the
+                same space. Clipped to the portrait box it does what design.md
+                asks of it: sit *behind the player*. */}
+            <PlayerGhost player={player} placement={side} scale={1.05} />
 
-          <div className="relative z-10 min-h-0 flex-1">
-            <PlayerPhoto player={player} fit="cover" priority />
+            <PlayerPhoto player={player} fit="contain" priority />
+
             <PointsBurst
               value={burst.burst}
               burstKey={burst.burstKey}
@@ -118,82 +154,98 @@ function LiveSide({
               direction="up"
               onComplete={burst.onBurstComplete}
               label={burst.burst != null ? `plus ${burst.burst} points` : undefined}
-              className={cn('bottom-[18%]', side === 'left' ? 'right-[6%]' : 'left-[6%]')}
+              className={cn('top-[14%]', side === 'left' ? 'right-[6%]' : 'left-[6%]')}
             />
-          </div>
 
-          <div
-            className={cn(
-              'relative z-20 flex flex-col gap-3 px-[5%] pb-[2%]',
-              side === 'left' ? 'items-start text-left' : 'items-end text-right',
-            )}
-          >
-            <div className={cn('flex items-center gap-4', side === 'right' && 'flex-row-reverse')}>
-              {slotLabelOf(player) ? (
-                <span className="u-numeral text-[44px] leading-none text-[color:var(--team-accent)]">
-                  {slotLabelOf(player)}
+            {/* Slot, rank and the on-the-ball flag, up out of the name lane. */}
+            <div
+              className={cn(
+                'absolute top-0 z-20 flex items-center gap-4',
+                side === 'left' ? 'left-0 flex-row' : 'right-0 flex-row-reverse',
+              )}
+            >
+              {slot ? (
+                <span className="u-numeral bg-[color:var(--team-accent)] rounded-md px-4 py-1 text-[40px] leading-none text-white">
+                  {slot}
                 </span>
               ) : null}
-              <RankBadge
-                rank={rank}
-                size="md"
-                tone={rank === 1 ? 'medal' : 'default'}
-              />
+              <RankBadge rank={rank} size="md" tone={rank === 1 ? 'medal' : 'default'} />
               {active ? (
                 <StatusPill label="ON THE BALL" tone="live" size="sm" pulse={!provisional} />
               ) : null}
             </div>
 
+          </div>
+
+          {/* The identity row. Its own band under the portrait — `shrink-0` so
+              it always states its full height and the portrait yields, never
+              the other way round. Nothing here sits on the photograph, so the
+              name is read off the page background at full contrast and the
+              player's face is never behind type. */}
+          <div
+            data-live-round-identity
+            className={cn(
+              'relative z-20 flex shrink-0 flex-col gap-2 pt-3',
+              side === 'left' ? 'items-start text-left' : 'items-end text-right',
+            )}
+          >
             <PlayerNameLockup
               player={player}
               size="lg"
               align={align}
-              eyebrow={team.name}
+              eyebrow={slot ? `${slot} · ${team.name}` : team.name}
             />
 
-            <ScoreNumeral
-              value={total ?? 0}
-              label="TOTAL"
-              suffix="PTS"
-              size="md"
-              tone="muted"
-              align={align}
-            />
+            <div
+              className={cn(
+                'flex items-end gap-7',
+                side === 'right' && 'flex-row-reverse',
+              )}
+            >
+              <ScoreNumeral
+                value={total ?? 0}
+                label="TOTAL"
+                suffix="PTS"
+                size="sm"
+                tone="muted"
+                align={align}
+              />
 
-            {/* Attempt history — per shot for C1–C3, ten balls for C4. */}
-            {rail.states.length > 0 ? (
-              <div
-                className={cn(
-                  'flex flex-col gap-2',
-                  side === 'left' ? 'items-start' : 'items-end',
-                )}
-              >
-                <AttemptDots
-                  attempts={rail.states}
-                  values={rail.values}
-                  total={rail.total}
-                  size={rail.total > 5 ? 'md' : 'lg'}
-                  align={align}
-                  label={rail.label}
-                  ariaLabel={`${team.name} attempts`}
-                />
-                {rail.lastDetail ? (
-                  <span className="u-label text-aqua-800 text-[16px]">{rail.lastDetail}</span>
-                ) : null}
-              </div>
-            ) : null}
+              {/* Attempt history — per shot for C1–C3, ten balls for C4. */}
+              {rail.states.length > 0 ? (
+                <div
+                  className={cn(
+                    'flex flex-col gap-2 pb-1',
+                    side === 'left' ? 'items-start' : 'items-end',
+                  )}
+                >
+                  <AttemptDots
+                    attempts={rail.states}
+                    values={rail.values}
+                    total={rail.total}
+                    size={rail.total > 5 ? 'sm' : 'md'}
+                    align={align}
+                    label={rail.label}
+                    ariaLabel={`${team.name} attempts`}
+                  />
+                  {rail.lastDetail ? (
+                    <span className="u-label text-aqua-800 text-[16px]">{rail.lastDetail}</span>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
           </div>
 
           <span
             aria-hidden
             className={cn(
-              'relative z-20 h-[10px] w-full rounded-pill bg-[color:var(--team-accent)]',
+              'relative z-20 mt-3 h-[10px] w-full shrink-0 rounded-pill bg-[color:var(--team-accent)]',
               !active && 'opacity-60',
             )}
           />
         </>
       ) : (
-        <div className="ring-border-subtle flex h-full flex-col items-center justify-center gap-4 rounded-xl bg-white/70 ring-1">
+        <div className="ring-border-subtle flex h-full min-h-0 flex-col items-center justify-center gap-4 rounded-xl bg-white/70 ring-1">
           <span className="u-display text-text-muted text-[52px] leading-none">{team.name}</span>
           <span className="u-label text-text-muted text-[18px]">NO PLAYER ON THIS SLOT</span>
         </div>
@@ -307,7 +359,14 @@ export function LiveRoundScene({ model }: SceneProps) {
         className="grid h-full min-h-0"
         style={{ gridTemplateRows: 'minmax(0, 1fr) 118px', rowGap: 16 }}
       >
-        <div className="grid min-h-0" style={{ gridTemplateColumns: '39fr 22fr 39fr' }}>
+        {/* `minmax(0, 1fr)` on the row, not the implicit `auto` a
+            columns-only template leaves behind: an auto row is sized by its
+            content, and a real portrait's intrinsic 1114×1412 makes that
+            content 878px tall in a 693px column. */}
+        <div
+          className="grid min-h-0"
+          style={{ gridTemplateColumns: '39fr 22fr 39fr', gridTemplateRows: 'minmax(0, 1fr)' }}
+        >
           <LiveSide
             side="left"
             code="A"
@@ -410,7 +469,10 @@ export function LiveRoundScene({ model }: SceneProps) {
         </div>
 
         {/* The five rounds of this challenge, and the running team totals. */}
-        <div className="grid min-h-0 items-center gap-8" style={{ gridTemplateColumns: '1fr 620px' }}>
+        <div
+          className="grid min-h-0 items-center gap-8"
+          style={{ gridTemplateColumns: '1fr 620px', gridTemplateRows: 'minmax(0, 1fr)' }}
+        >
           <RoundRail
             rounds={model.rounds}
             currentRoundId={round?.id ?? null}

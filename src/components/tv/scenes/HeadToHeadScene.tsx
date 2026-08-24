@@ -92,36 +92,45 @@ function VsSide({ side, player, team, entered, identity }: VsSideProps) {
       initial={motionOn ? { opacity: 0, x: offset } : false}
       animate={entered ? { opacity: 1, x: 0 } : { opacity: 0, x: offset }}
       transition={{ duration: DURATION.hero, ease: EASE.entrance }}
-      className="relative flex h-full min-w-0 flex-col"
+      className="relative flex h-full min-h-0 min-w-0 flex-col"
     >
       {player ? (
         <>
-          <PlayerGhost player={player} placement={side} scale={1.15} />
-
           <div
-            className="relative z-10 min-h-0 flex-1"
+            className="relative z-10 min-h-0 flex-1 overflow-hidden"
             /* Pushed toward the spine — the pair should look inward, not out. */
             style={{ transform: `translateX(${side === 'left' ? '3.5%' : '-3.5%'})` }}
           >
-            <PlayerPhoto player={player} fit="cover" priority />
+            {/* Behind the player, and clipped to the player's own box — parented
+                to the column it would sit behind the name instead. */}
+            <PlayerGhost player={player} placement={side} scale={1.15} />
+
+            {/* `contain`: the supplied portraits are tight head-and-shoulders
+                shots with the chin at ~70-78% of the frame, so `cover` at this
+                column's width must discard either the hair or the jaw. */}
+            <PlayerPhoto player={player} fit="contain" priority />
           </div>
 
+          {/* The identity band, under the portrait rather than over it —
+              design.md reads this column as PHOTO → NAME → TOTAL → RANK, and
+              on the real photographs a plate over the foot of the frame lands
+              on the player's mouth rather than on a torso. */}
           <motion.div
             initial={motionOn ? { opacity: 0, y: 26 } : false}
             animate={identity ? { opacity: 1, y: 0 } : { opacity: 0, y: 26 }}
             transition={{ duration: DURATION.card, ease: EASE.entrance }}
             className={cn(
-              'relative z-20 flex flex-col gap-3 px-[6%] pb-[2%]',
+              'relative z-20 flex shrink-0 flex-col gap-2 pt-3',
               side === 'left' ? 'items-start text-left' : 'items-end text-right',
             )}
           >
             <div className={cn('flex items-center gap-4', side === 'right' && 'flex-row-reverse')}>
               {slotLabelOf(player) ? (
-                <span className="u-numeral text-[44px] leading-none text-[color:var(--team-accent)]">
+                <span className="u-numeral bg-[color:var(--team-accent)] rounded-md px-4 py-1 text-[34px] leading-none text-white">
                   {slotLabelOf(player)}
                 </span>
               ) : null}
-              <span className="u-label text-text-muted text-[18px]">{team.name}</span>
+              <span className="u-label text-text-muted text-[20px]">{team.name}</span>
             </div>
 
             <PlayerNameLockup player={player} size="lg" align={align} />
@@ -136,12 +145,12 @@ function VsSide({ side, player, team, entered, identity }: VsSideProps) {
                 value={totalPointsOf(player) ?? 0}
                 label="TOTAL POINTS"
                 suffix="PTS"
-                size="md"
+                size="sm"
                 tone="team"
                 align={align}
                 animate={false}
               />
-              <div className="flex flex-col items-center gap-2 pb-2">
+              <div className="flex flex-col items-center gap-2 pb-1">
                 <span className="u-label text-text-muted text-[15px]">OVERALL RANK</span>
                 <RankBadge
                   rank={rankOf(player)}
@@ -155,11 +164,11 @@ function VsSide({ side, player, team, entered, identity }: VsSideProps) {
 
           <span
             aria-hidden
-            className="relative z-20 h-[10px] w-full rounded-pill bg-[color:var(--team-accent)]"
+            className="relative z-20 mt-3 h-[10px] w-full shrink-0 rounded-pill bg-[color:var(--team-accent)]"
           />
         </>
       ) : (
-        <div className="ring-border-subtle flex h-full flex-col items-center justify-center gap-6 rounded-xl bg-white/70 ring-1">
+        <div className="ring-border-subtle flex h-full min-h-0 flex-col items-center justify-center gap-6 rounded-xl bg-white/70 ring-1">
           <span className="u-display text-text-muted text-[64px] leading-none">{team.name}</span>
           <span className="u-label text-text-muted text-[20px]">PLAYER TO BE CONFIRMED</span>
         </div>
@@ -227,7 +236,7 @@ export function HeadToHeadScene({ model }: SceneProps) {
         {/* 42% / 16% / 42%, exactly as design.md screen 03 specifies. */}
         <div
           className="grid min-h-0"
-          style={{ gridTemplateColumns: '42fr 16fr 42fr' }}
+          style={{ gridTemplateColumns: '42fr 16fr 42fr', gridTemplateRows: 'minmax(0, 1fr)' }}
         >
           <VsSide
             side="left"

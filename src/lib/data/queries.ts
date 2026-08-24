@@ -196,6 +196,28 @@ export async function getRounds(db: Db, challengeId: string): Promise<RoundRow[]
   );
 }
 
+/**
+ * Every round across a set of challenges, ordered by challenge then number.
+ *
+ * The snapshot needs this before it can decide which challenge the show is on:
+ * a challenge whose rounds are all published is finished whether or not anyone
+ * moved its status, and that can only be seen by looking at the rounds.
+ */
+export async function getRoundsForChallenges(
+  db: Db,
+  challengeIds: string[],
+): Promise<RoundRow[]> {
+  if (challengeIds.length === 0) return [];
+  return rows<RoundRow>(
+    await db
+      .from('rounds')
+      .select('*')
+      .in('challenge_id', challengeIds)
+      .order('challenge_id')
+      .order('number'),
+  );
+}
+
 export async function getRound(db: Db, roundId: string): Promise<RoundRow | null> {
   return unwrap<RoundRow | null>(
     await db.from('rounds').select('*').eq('id', roundId).maybeSingle(),

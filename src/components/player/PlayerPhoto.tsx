@@ -11,8 +11,18 @@ import {
   displayNameOf,
   focalPosition,
   portraitSrc,
+  sizedPortraitSrc,
   type PlayerLike,
 } from '@/components/player/player-identity';
+
+/**
+ * Delivery width, in CSS pixels, for a portrait whose caller says nothing.
+ *
+ * Comfortably above the largest box a portrait is painted into — the TV hero
+ * column — so the CDN copy is never upscaled, while still an order of
+ * magnitude smaller than the uploaded original.
+ */
+const DEFAULT_DELIVERY_WIDTH = 800;
 
 export interface PlayerPhotoProps {
   player: PlayerLike;
@@ -31,6 +41,12 @@ export interface PlayerPhotoProps {
   fallbackTone?: PlayerCardFallbackTone;
   /** Load eagerly — set on the one or two heroes actually on screen. */
   priority?: boolean;
+  /**
+   * Width the portrait is painted at, in CSS pixels. Used to ask the CDN for a
+   * copy that size instead of the multi-megabyte original. Pass it on small
+   * cards; the default already suits the largest box on the wall.
+   */
+  deliveryWidth?: number;
   className?: string;
   imgClassName?: string;
 }
@@ -48,17 +64,28 @@ export function PlayerPhoto({
   fade = true,
   fallbackTone = 'team',
   priority = false,
+  deliveryWidth = DEFAULT_DELIVERY_WIDTH,
   className,
   imgClassName,
 }: PlayerPhotoProps) {
-  const src = portraitSrc(player);
-  // The failure is recorded against the address that failed, so a new player in
-  // the same slot gets a fresh attempt at their photo without an effect having
-  // to reset anything.
-  const [brokenSrc, setBrokenSrc] = useState<string | null>(null);
-  const broken = src !== null && brokenSrc === src;
+  const original = portraitSrc(player);
+  const sized = sizedPortraitSrc(original, deliveryWidth);
 
-  if (!src || broken) {
+  // Failures are recorded against the addresses that failed, so a new player in
+  // the same slot gets a fresh attempt at their photo without an effect having
+  // to reset anything. It has to be every failed address rather than the last
+  // one, or the two candidates below would take it in turns forever.
+  const [brokenSrcs, setBrokenSrcs] = useState<readonly string[]>([]);
+
+  // Three steps down, never a broken glyph: the CDN-resized copy, then the
+  // untouched original if that address fails, then the branded fallback. A
+  // resizing service that is unavailable therefore costs a moment, not a face.
+  const src =
+    [sized, original].find(
+      (candidate): candidate is string => candidate !== null && !brokenSrcs.includes(candidate),
+    ) ?? null;
+
+  if (!src) {
     return (
       <PlayerCardFallback
         player={player}
@@ -80,7 +107,9 @@ export function PlayerPhoto({
         loading={priority ? 'eager' : 'lazy'}
         fetchPriority={priority ? 'high' : undefined}
         decoding="async"
-        onError={() => setBrokenSrc(src)}
+        onError={() =>
+          setBrokenSrcs((prev) => (prev.includes(src) ? prev : [...prev, src]))
+        }
         className={cn(
           'h-full w-full',
           fit === 'cover' ? 'object-cover' : 'object-contain',

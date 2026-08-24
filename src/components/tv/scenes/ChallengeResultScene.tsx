@@ -75,7 +75,7 @@ function TeamPanel({
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: DURATION.card, ease: EASE.entrance, delay }}
       className={cn(
-        'relative flex min-h-0 flex-col justify-between gap-5 overflow-hidden rounded-xl px-9 py-7',
+        'relative flex min-h-0 flex-col justify-between gap-4 overflow-hidden rounded-xl px-9 py-6',
         'bg-[color-mix(in_oklab,var(--team-accent)_9%,white)]',
         won ? 'ring-2 ring-[color:var(--team-accent)] shadow-hero' : 'ring-border-subtle ring-1',
         align === 'end' ? 'items-end text-right' : 'items-start text-left',
@@ -170,8 +170,8 @@ function FeatureCard({
         tone === 'gold' ? 'ring-gold/35 ring-2' : 'ring-border-subtle ring-1',
       )}
     >
-      <div className="relative w-[172px] shrink-0 bg-[color-mix(in_oklab,var(--team-accent)_12%,white)]">
-        <PlayerPhoto player={player} fit="cover" fade={false} />
+      <div className="relative w-[172px] shrink-0 overflow-hidden bg-[color-mix(in_oklab,var(--team-accent)_12%,white)]">
+        <PlayerPhoto player={player} fit="cover" fade={false} priority />
         <span
           aria-hidden
           className="absolute inset-y-0 right-0 w-[8px] bg-[color:var(--team-accent)]"
@@ -250,16 +250,31 @@ export function ChallengeResultScene({ model }: SceneProps) {
       sponsors={snapshot.sponsors}
       starField="result"
     >
-      <div className="grid h-full min-h-0 gap-10" style={{ gridTemplateColumns: 'minmax(0,1fr) 500px' }}>
+      <div
+        className="grid h-full min-h-0 gap-10"
+        style={{ gridTemplateColumns: 'minmax(0,1fr) 500px', gridTemplateRows: 'minmax(0, 1fr)' }}
+      >
+        {/* The headline row is `auto`, not a fixed height. This is the only
+            headline in the family carrying *both* an eyebrow and a sub-line, so
+            its stack is the tallest of them, and a grid row shorter than its
+            item does not clip that item — it lets it paint over the next row,
+            which on the wall left `DRIBBLE & FINISH` half-buried under the team
+            panels. Sized by content that cannot happen.
+            The row it borrows from is the feature row, not the panels:
+            design.md calls the two team panels the main visual of this screen,
+            and they need ~426px to show a best-performer card whole. */}
         <div
           className="grid min-h-0"
-          style={{ gridTemplateRows: '164px minmax(0, 1fr) 216px', rowGap: 20 }}
+          style={{ gridTemplateRows: 'auto minmax(0, 1fr) 210px', rowGap: 20 }}
         >
           {/* CHALLENGE 02 COMPLETE — DRIBBLE & FINISH. */}
           <SceneHeadline
             eyebrow={model.challengeConfig ? mechanicRule(model.challengeConfig) : 'CHAPTER COMPLETE'}
             sub={model.challengeTitle}
-            size="lg"
+            /* `md`, not `lg`: at 124px `CHALLENGE 02 COMPLETE` already fills
+               the whole 1236px column, so a longer challenge label would wrap
+               to a second line and push the panels down. */
+            size="md"
             align="start"
             delay={DELAY.headline}
           >
@@ -267,7 +282,10 @@ export function ChallengeResultScene({ model }: SceneProps) {
           </SceneHeadline>
 
           {/* Two team panels with the verdict between them. */}
-          <div className="grid min-h-0 gap-6" style={{ gridTemplateColumns: '1fr 280px 1fr' }}>
+          <div
+            className="grid min-h-0 gap-6"
+            style={{ gridTemplateColumns: '1fr 280px 1fr', gridTemplateRows: 'minmax(0, 1fr)' }}
+          >
             <TeamPanel
               code="A"
               team={model.a}
@@ -322,7 +340,10 @@ export function ChallengeResultScene({ model }: SceneProps) {
           </div>
 
           {/* Top performance of the challenge, and who leads the event. */}
-          <div className="grid min-h-0 gap-6" style={{ gridTemplateColumns: '1fr 1fr' }}>
+          <div
+            className="grid min-h-0 gap-6"
+            style={{ gridTemplateColumns: '1fr 1fr', gridTemplateRows: 'minmax(0, 1fr)' }}
+          >
             {bestOverall && bestTeam ? (
               <FeatureCard
                 caption="TOP PERFORMANCE"

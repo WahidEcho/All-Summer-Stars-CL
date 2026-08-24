@@ -226,6 +226,30 @@ function playerId(slot: string): string {
   return `sample-player-${slot.toLowerCase()}`;
 }
 
+/**
+ * A portrait-shaped stand-in, inline, at the proportions the real photographs
+ * arrive in (1114×1412 — tall, roughly 3:4).
+ *
+ * The sample used to carry no portrait at all and fall through to the branded
+ * silhouette, and that is precisely how a layout fault reached the LED wall:
+ * the silhouette is a `<div>` with no intrinsic size, so QA never saw what a
+ * real `<img>` does to a column that has not been given a definite height. A
+ * stand-in with the real aspect makes the QA route exercise the same geometry
+ * the venue does. It is obviously a placeholder, and it is a data URI, so no
+ * screen can 404 and nothing has to ship in `public/`.
+ */
+const SAMPLE_PORTRAIT = `data:image/svg+xml,${encodeURIComponent(
+  [
+    '<svg xmlns="http://www.w3.org/2000/svg" width="1114" height="1412" viewBox="0 0 1114 1412">',
+    '<rect width="1114" height="1412" fill="#dbeef2"/>',
+    '<circle cx="557" cy="470" r="232" fill="#9cc9d4"/>',
+    '<path d="M557 760c-238 0-404 168-404 388v264h808v-264c0-220-166-388-404-388z" fill="#9cc9d4"/>',
+    '<text x="557" y="1330" text-anchor="middle" font-family="sans-serif" ',
+    'font-size="58" letter-spacing="8" fill="#4a7d89">SAMPLE PORTRAIT</text>',
+    '</svg>',
+  ].join(''),
+)}`;
+
 const SAMPLE_PLAYERS: PlayerRow[] = (['A', 'B'] as TeamCode[]).flatMap((code) =>
   CAST[code].map((member, index) => ({
     id: playerId(member.slot),
@@ -235,9 +259,10 @@ const SAMPLE_PLAYERS: PlayerRow[] = (['A', 'B'] as TeamCode[]).flatMap((code) =>
     display_name: member.full.toUpperCase(),
     slug: member.full.toLowerCase().replace(/\s+/g, '-'),
     jersey_number: member.jersey,
-    // No portraits ship in the repo yet, so the sample deliberately exercises
-    // the branded silhouette fallback rather than pointing at 404s.
-    photo_url: null,
+    // A portrait-shaped stand-in at the real photographs' proportions, so every
+    // preview screen is composed against an `<img>` with intrinsic dimensions
+    // rather than against the size-less fallback.
+    photo_url: SAMPLE_PORTRAIT,
     portrait_url: null,
     focal_x: 0.5,
     focal_y: 0.34,

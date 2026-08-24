@@ -57,6 +57,37 @@ export {
 } from '@/components/admin/UploadField';
 
 export {
+  ChallengeResultPreview,
+  type ChallengeResultPreviewProps,
+} from '@/components/admin/ChallengeResultPreview';
+export {
+  DisplayTargetPicker,
+  FOLLOW_LIVE,
+  TARGET_KEYS,
+  describeTarget,
+  isPinned,
+  sameTarget,
+  targetFromPayload,
+  targetPayload,
+  withoutTarget,
+  type DisplayTarget,
+  type DisplayTargetPickerProps,
+} from '@/components/admin/DisplayTargetPicker';
+export {
+  challengeStatusLabel,
+  isRoundPublished,
+  mechanicLabel,
+  outcomeName,
+  pinReference,
+  previewChallengeResult,
+  roundProgress,
+  roundStatusLabel,
+  sideName,
+  type LifecycleLabel,
+  type RoundProgress,
+} from '@/components/admin/challenge-lifecycle';
+
+export {
   CEREMONY_CUES,
   FIRST_CUE,
   LAST_CUE,

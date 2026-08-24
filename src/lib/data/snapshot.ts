@@ -27,7 +27,7 @@ import {
   getMatchByChallenge,
   getPenaltyAttempts,
   getPlayers,
-  getRounds,
+  getRoundsForChallenges,
   getScoringProfile,
   getShootout,
   getSponsors,
@@ -118,11 +118,25 @@ export interface SnapshotOptions {
   roundId?: string;
 }
 
-/** The challenge the event is on: live first, then the first unfinished one. */
-export function pickCurrentChallenge(challenges: ChallengeRow[]): ChallengeRow | null {
+/**
+ * The challenge the event is on: live first, then the first unfinished one.
+ *
+ * `finishedIds` carries challenges whose rounds have all been published even
+ * though nobody moved the challenge row to `completed`. Without it a challenge
+ * left on `draft` after its last round is published keeps winning this pick
+ * forever, and the wall strands on that challenge's final round while the next
+ * one is already being scored. Status still leads when it has been maintained;
+ * this only stops a stale status from trapping the show.
+ */
+export function pickCurrentChallenge(
+  challenges: ChallengeRow[],
+  finishedIds: ReadonlySet<string> = new Set(),
+): ChallengeRow | null {
+  const done = (c: ChallengeRow) => c.status === 'completed' || finishedIds.has(c.id);
   return (
+    challenges.find((c) => c.status === 'live' && !finishedIds.has(c.id)) ??
+    challenges.find((c) => !done(c)) ??
     challenges.find((c) => c.status === 'live') ??
-    challenges.find((c) => c.status !== 'completed') ??
     challenges[challenges.length - 1] ??
     null
   );
@@ -161,23 +175,46 @@ export async function getEventSnapshot(
       getLedger(db, eventId, { confirmedOnly: true }),
     ]);
 
-  const currentChallenge = opts.challengeId
-    ? challenges.find((c) => c.id === opts.challengeId) ?? null
-    : pickCurrentChallenge(challenges);
+  const roundChallengeIds = challenges
+    .filter((c) => c.mechanic !== 'final_match')
+    .map((c) => c.id);
+  const allRounds: RoundRow[] = await getRoundsForChallenges(db, roundChallengeIds);
+
+  // A challenge with rounds, all of them published, is finished — regardless of
+  // whether its status row was ever advanced.
+  const finishedIds = new Set(
+    roundChallengeIds.filter((id) => {
+      const own = allRounds.filter((r) => r.challenge_id === id);
+      return own.length > 0 && own.every((r) => r.status === 'published' || r.status === 'completed');
+    }),
+  );
+
+  // A pinned round wins outright and drags its own challenge into view with it,
+  // so an operator can put any round on the wall — including one from a
+  // challenge the auto-detection would never choose.
+  const pinnedRound = opts.roundId
+    ? (allRounds.find((r) => r.id === opts.roundId) ?? null)
+    : null;
+
+  const currentChallenge = pinnedRound
+    ? (challenges.find((c) => c.id === pinnedRound.challenge_id) ?? null)
+    : opts.challengeId
+      ? (challenges.find((c) => c.id === opts.challengeId) ?? null)
+      : pickCurrentChallenge(challenges, finishedIds);
 
   const finalChallenge = challenges.find((c) => c.mechanic === 'final_match') ?? null;
 
-  const [allLineups, rounds, match] = await Promise.all([
+  const [allLineups, match] = await Promise.all([
     getAllLineups(db, challenges.map((c) => c.id)),
-    currentChallenge && currentChallenge.mechanic !== 'final_match'
-      ? getRounds(db, currentChallenge.id)
-      : Promise.resolve<RoundRow[]>([]),
     finalChallenge ? getMatchByChallenge(db, finalChallenge.id) : Promise.resolve(null),
   ]);
 
-  const currentRound = opts.roundId
-    ? rounds.find((r) => r.id === opts.roundId) ?? null
-    : pickCurrentRound(rounds);
+  const rounds: RoundRow[] =
+    currentChallenge && currentChallenge.mechanic !== 'final_match'
+      ? allRounds.filter((r) => r.challenge_id === currentChallenge.id)
+      : [];
+
+  const currentRound = pinnedRound ?? pickCurrentRound(rounds);
 
   const [attempts, goals, shootout, standings] = await Promise.all([
     currentRound ? getAttempts(db, currentRound.id) : Promise.resolve<AttemptRow[]>([]),

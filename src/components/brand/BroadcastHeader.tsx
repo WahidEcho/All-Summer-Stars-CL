@@ -30,6 +30,16 @@ export interface BroadcastHeaderProps {
   /** Width of the competition mark. Default `clamp(150px, 15%, 340px)`. */
   markWidth?: string | number;
   /**
+   * Height of the competition mark, in px. Overrides `markWidth`.
+   *
+   * Prefer this whenever `height` is a known px value: the lockup is a ~2:1
+   * landscape mark, so asking for a width silently asks for half that in
+   * height, and any width above `2 × height` puts the mark taller than the
+   * band it lives in. Sized by height it always fits, with its clear space
+   * intact.
+   */
+  markHeight?: number;
+  /**
    * Band height. Defaults to 11.111% — the ~11% top zone of a 16:9 stage.
    * Pass a px value when the header is not inside a fixed-aspect canvas.
    */
@@ -61,6 +71,7 @@ export function BroadcastHeader({
   partnerHeight = 34,
   markVariant = 'light',
   markWidth = 'clamp(150px, 15%, 340px)',
+  markHeight,
   height = '11.111%',
   rule = true,
   className,
@@ -79,7 +90,12 @@ export function BroadcastHeader({
     >
       {/* Left — event identity, then the top-tier partners. */}
       <div className="flex min-w-0 shrink-0 items-center gap-6">
-        <EventMark variant={markVariant} width={markWidth} priority title="" />
+        <EventMark
+          variant={markVariant}
+          {...(markHeight != null ? { height: markHeight } : { width: markWidth })}
+          priority
+          title=""
+        />
         <span className="u-sr-only">SwanLake Football Stars — Shores &amp; Scores Challenge</span>
 
         {partners && partners.length > 0 ? (

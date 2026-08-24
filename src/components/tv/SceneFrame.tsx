@@ -6,10 +6,13 @@ import { cn } from '@/lib/cn';
 import { BroadcastHeader, SponsorTicker, StarField, type StarFieldVariant } from '@/components/brand';
 import type { SponsorRow } from '@/lib/types';
 import {
+  contentHeight,
   CONTENT_PAD_Y,
   HEADER_H,
+  HEADER_MARK_H,
   HEADER_QR,
   SAFE,
+  STAGE_H,
   TICKER_H,
 } from '@/components/tv/constants';
 
@@ -47,6 +50,23 @@ export interface SceneFrameProps {
  * The bands run edge to edge because they are furniture; their *content* is
  * inset to the 72px safe area, as is the live content region, so nothing that
  * carries meaning can be lost to an over-scanning panel.
+ *
+ * ## Why the three rows are pinned rather than flexed
+ *
+ * The canvas is a real vertical stack — `HEADER_H` / `contentHeight()` /
+ * `TICKER_H`, summing to exactly 1080 — with every row given its height
+ * outright and the content row clipping its own overflow.
+ *
+ * A flexed `flex-1` content row looks equivalent and is not. A flex item's
+ * height only becomes *definite* for its own descendants once nothing inside
+ * pushes back, and a real player photograph pushes back hard: an `<img>` with
+ * `h-full` inside an auto-sized grid row falls back to its intrinsic aspect,
+ * so a 1114×1412 portrait in a 693px-wide column asks for 878px of height and
+ * an auto row grants it. That is precisely what put the live round's players
+ * 1300px tall inside an 826px box on the LED wall, with their names and their
+ * chins hidden behind the sponsor strip. A row with a stated height cannot be
+ * argued with, and `overflow-hidden` on it means the worst any future scene can
+ * do is crop itself — never paint over the sponsors.
  */
 export function SceneFrame({
   eyebrow,
@@ -64,13 +84,16 @@ export function SceneFrame({
   contentClassName,
   bleed = false,
 }: SceneFrameProps) {
+  const contentH = contentHeight(header, ticker);
+
   return (
     <section
       data-scene-frame
       className={cn(
-        'text-ink relative isolate flex h-full w-full flex-col overflow-hidden',
+        'text-ink relative isolate flex w-full flex-col overflow-hidden',
         className,
       )}
+      style={{ height: STAGE_H }}
     >
       {starField ? <StarField variant={starField} className="z-0" /> : null}
 
@@ -83,15 +106,16 @@ export function SceneFrame({
           qrUrl={qrUrl ?? undefined}
           qrSize={HEADER_QR}
           height={HEADER_H}
-          markWidth={300}
+          markHeight={HEADER_MARK_H}
           className="px-[72px]"
         />
       ) : null}
 
       <div
         data-scene-content
-        className={cn('relative z-10 min-h-0 flex-1', contentClassName)}
+        className={cn('relative z-10 shrink-0 grow-0 overflow-hidden', contentClassName)}
         style={{
+          height: contentH,
           paddingLeft: bleed ? 0 : SAFE,
           paddingRight: bleed ? 0 : SAFE,
           paddingTop: header ? CONTENT_PAD_Y : SAFE,

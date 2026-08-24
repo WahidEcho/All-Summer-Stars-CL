@@ -19,6 +19,16 @@ export interface EventMarkProps {
    * follows the 2:1 lockup so it can never distort.
    */
   width?: number | string;
+  /**
+   * Explicit height, with the width derived from the lockup's own aspect.
+   *
+   * This is the right control wherever the mark lives in a band of a known
+   * height — the broadcast header, above all. Sizing that mark by width means
+   * guessing a height, and a guess that comes out taller than the band leaves
+   * the lockup clipped by the band's overflow. Ask for the height instead and
+   * the full lockup is guaranteed to fit. `height` wins over `width`.
+   */
+  height?: number | string;
   /** Corner radius for the plated variants. Ignored by `light`. */
   radius?: 'none' | 'sm' | 'md' | 'lg' | 'xl';
   /**
@@ -64,6 +74,7 @@ const ASSET: Record<EventMarkVariant, BrandAsset> = {
 export function EventMark({
   variant = 'light',
   width,
+  height,
   radius = 'md',
   title = 'SwanLake Football Stars — Shores & Scores Challenge',
   priority = false,
@@ -72,6 +83,9 @@ export function EventMark({
 }: EventMarkProps) {
   const asset = ASSET[variant];
   const decorative = title === '';
+  // A height-sized mark takes its width from the lockup's aspect, so it must
+  // not also be stretched to the container.
+  const sized = height !== undefined || width !== undefined;
 
   return (
     <span
@@ -81,11 +95,15 @@ export function EventMark({
       aria-hidden={decorative || undefined}
       className={cn(
         'relative block overflow-hidden',
-        width === undefined && 'w-full',
+        !sized && 'w-full',
         asset.plate ? RADIUS[radius] : 'rounded-none',
         className,
       )}
-      style={{ aspectRatio: String(asset.aspect), width, ...style }}
+      style={{
+        aspectRatio: String(asset.aspect),
+        ...(height !== undefined ? { height, width: 'auto' } : { width }),
+        ...style,
+      }}
     >
       <img
         src={asset.src}

@@ -88,8 +88,8 @@ function ResultSide({
   const scale = !emphasised ? 1 : won ? 1.13 : lost ? 0.93 : 1;
 
   return (
-    <div className="flex min-h-0 flex-col items-center gap-4">
-      <div className="flex h-[64px] items-end">
+    <div className="flex h-full min-h-0 flex-col items-center gap-4">
+      <div className="flex h-[64px] shrink-0 items-end">
         <motion.div
           initial={motionOn ? { opacity: 0, y: 14 } : false}
           animate={emphasised && won ? { opacity: 1, y: 0 } : { opacity: 0, y: 14 }}
@@ -225,7 +225,10 @@ export function RoundResultScene({ model }: SceneProps) {
         </div>
 
         {/* Both players, side by side, with the outcome spine between them. */}
-        <div className="relative grid min-h-0" style={{ gridTemplateColumns: '1fr 320px 1fr' }}>
+        <div
+          className="relative grid min-h-0"
+          style={{ gridTemplateColumns: '1fr 320px 1fr', gridTemplateRows: 'minmax(0, 1fr)' }}
+        >
           <ResultSide
             side="left"
             code="A"

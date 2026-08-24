@@ -9,17 +9,35 @@
  * embedded live at 1920x1080 and transform-scaled down, so what the console
  * shows is the actual wall — not a drawing of it.
  *
- * Two rules shape the layout. The scene on air must be readable from across the
- * room without clicking anything, and the way back to the safe scene must never
+ * Three rules shape the layout. The scene on air must be readable from across
+ * the room without clicking anything; the way back to the safe scene must never
  * be more than one tap away — which is why the transmission bar is sticky and
- * GO TO HOLDING is never disabled, not even while another command is in flight.
+ * GO TO HOLDING is never disabled, not even while another command is in flight;
+ * and the operator must never have to guess *why* the wall is showing what it
+ * is showing.
+ *
+ * ## The pin
+ *
+ * That third rule is new, and it is the reason this screen was rebuilt. The
+ * wall decides which challenge and which round to render in one of two ways.
+ * Either the display payload carries `challengeId` / `roundId`, in which case
+ * `TvSurface` hands them to `useEventSnapshot` and the snapshot is pinned to
+ * exactly that slice of the event — or it carries neither, and the snapshot
+ * auto-detects: the live challenge, the first unfinished round.
+ *
+ * Auto-detection is right almost always and blind exactly when a status row is
+ * stale. On the night, challenge 1 was over but still marked otherwise, so the
+ * wall sat on challenge 1 round 5 while challenge 2 was being scored, and no
+ * control in this console could move it. Now the operator names the challenge
+ * and the round outright, sees at a glance whether the wall is PINNED or
+ * FOLLOWING LIVE, and can drop the pin again in one tap.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 
 import { cn } from '@/lib/cn';
-import { getRounds } from '@/lib/data/queries';
+import { getRoundsForChallenges } from '@/lib/data/queries';
 import { supabase } from '@/lib/supabase/client';
 import {
   clearPreviewScene,
@@ -42,6 +60,8 @@ import {
   CEREMONY_CUES,
   Callout,
   ConfirmDialog,
+  DisplayTargetPicker,
+  FOLLOW_LIVE,
   Field,
   NumberInput,
   PageHeader,
@@ -52,9 +72,16 @@ import {
   SelectInput,
   TextInput,
   Toggle,
+  describeTarget,
+  isPinned,
   missingSceneFields,
+  sameTarget,
   sceneTitle,
+  targetFromPayload,
+  targetPayload,
   useActionRunner,
+  withoutTarget,
+  type DisplayTarget,
   type ScenePayloadField,
 } from '@/components/admin';
 
@@ -68,6 +95,14 @@ import {
  * zero, which matters when zero is a legal value for a field.
  */
 type Draft = Record<string, string>;
+
+/**
+ * The two keys the wall reads as a pin. They are declared on several scenes in
+ * `SCENES` as ordinary payload fields, but they are no longer edited as such:
+ * the target picker owns both, for every scene, so there is exactly one control
+ * in the room that decides what the wall is looking at.
+ */
+const PIN_KEYS = new Set(['challengeId', 'roundId']);
 
 interface PayloadSources {
   programScene: DisplayScene;
@@ -87,6 +122,7 @@ function seedFrom(scene: DisplayScene, sources: PayloadSources): Draft {
 
   const draft: Draft = {};
   for (const field of descriptor.fields) {
+    if (PIN_KEYS.has(field.key)) continue;
     const raw = source[field.key];
     draft[field.key] =
       raw === undefined || raw === null
@@ -98,10 +134,12 @@ function seedFrom(scene: DisplayScene, sources: PayloadSources): Draft {
   return draft;
 }
 
+/** The scene's own fields, without the pin. The pin is merged in separately. */
 function buildPayload(scene: DisplayScene, draft: Draft): Record<string, unknown> {
   const payload: Record<string, unknown> = {};
 
   for (const field of SCENE_BY_ID[scene].fields) {
+    if (PIN_KEYS.has(field.key)) continue;
     const raw = (draft[field.key] ?? '').trim();
     if (raw === '') continue;
 
@@ -118,6 +156,28 @@ function buildPayload(scene: DisplayScene, draft: Draft): Record<string, unknown
   }
 
   return payload;
+}
+
+/**
+ * Which required fields a scene is still missing, given the target.
+ *
+ * A scene that declares `roundId` as required is satisfied two ways: by a pin
+ * naming the round, or by FOLLOW LIVE, where the wall's own auto-detection
+ * supplies it. The second is not a missing value — it is the normal mode — so
+ * it is not reported as one.
+ */
+function missingFields(
+  scene: DisplayScene,
+  payload: Record<string, unknown>,
+  target: DisplayTarget,
+): string[] {
+  const base = missingSceneFields(scene, payload);
+  if (target.kind !== 'auto') return base;
+
+  const supplied = new Set(
+    SCENE_BY_ID[scene].fields.filter((f) => PIN_KEYS.has(f.key)).map((f) => f.label),
+  );
+  return base.filter((label) => !supplied.has(label));
 }
 
 // ---------------------------------------------------------------------------
@@ -263,6 +323,7 @@ export default function DisplayControlPage() {
     previewScene: null,
     previewPayload: {},
   }));
+  const [targetOverride, setTargetOverride] = useState<DisplayTarget | null>(null);
   const [monitorsOn, setMonitorsOn] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const [confirmCut, setConfirmCut] = useState(false);
@@ -280,19 +341,8 @@ export default function DisplayControlPage() {
     sourcesRef.current = { programScene, programPayload, previewScene, previewPayload };
   });
 
-  // Open the console on whatever the wall is already doing, once, then leave
-  // the operator's selection alone.
-  const initialised = useRef(false);
-  useEffect(() => {
-    if (initialised.current || displayLoading) return;
-    initialised.current = true;
-    const scene = previewScene ?? programScene;
-    setSelected(scene);
-    setDraft(seedFrom(scene, sourcesRef.current));
-  }, [displayLoading, previewScene, programScene]);
-
   // Rounds for every challenge: the snapshot only carries the current one, and
-  // the operator has to be able to line up any round in the show.
+  // the operator has to be able to put any round in the show on the wall.
   const [rounds, setRounds] = useState<RoundRow[]>([]);
   const challengeIds = snapshot?.challenges.map((c) => c.id).join(',') ?? '';
 
@@ -302,10 +352,8 @@ export default function DisplayControlPage() {
 
     void (async () => {
       try {
-        const db = supabase();
-        const ids = challengeIds.split(',');
-        const lists = await Promise.all(ids.map((id) => getRounds(db, id)));
-        if (live) setRounds(lists.flat());
+        const all = await getRoundsForChallenges(supabase(), challengeIds.split(','));
+        if (live) setRounds(all);
       } catch {
         // Without this the round picker is empty; every other control still
         // works, so the failure is not worth blanking the screen for.
@@ -317,41 +365,46 @@ export default function DisplayControlPage() {
     };
   }, [challengeIds, snapshot?.revision]);
 
+  // Open the console on whatever the wall is already doing, once, then leave
+  // the operator's selection alone.
+  const initialisedScene = useRef(false);
+  useEffect(() => {
+    if (initialisedScene.current || displayLoading) return;
+    initialisedScene.current = true;
+    const scene = previewScene ?? programScene;
+    setSelected(scene);
+    setDraft(seedFrom(scene, sourcesRef.current));
+  }, [displayLoading, previewScene, programScene]);
+
+  /**
+   * The pin the operator is editing.
+   *
+   * Derived rather than seeded by an effect: until the picker is touched, the
+   * draft simply *is* whatever the wall is currently pinned to, so the console
+   * opens on the truth and stays on it through a TAKE LIVE. The first click on
+   * the picker replaces it with the operator's own choice and it stops moving.
+   *
+   * Reading it this way also survives the rounds arriving late — a payload
+   * carrying only a `roundId` needs the round list to say which challenge that
+   * round belongs to, and this recomputes the moment the list lands.
+   */
+  const seededTarget = useMemo(
+    () => targetFromPayload(previewScene ? previewPayload : programPayload, rounds),
+    [previewScene, previewPayload, programPayload, rounds],
+  );
+  const target = targetOverride ?? seededTarget;
+
+  const challenges = useMemo(() => snapshot?.challenges ?? [], [snapshot]);
+  const playersById = useMemo(() => snapshot?.playersById ?? {}, [snapshot]);
+
   const playerName = useCallback(
     (id: string | null | undefined): string => {
       if (!id) return 'Empty slot';
-      const player = snapshot?.playersById[id];
+      const player = playersById[id];
       return player?.display_name ?? player?.full_name ?? 'Unknown player';
     },
-    [snapshot],
+    [playersById],
   );
-
-  const challengeOptions = useMemo(
-    () =>
-      (snapshot?.challenges ?? []).map((challenge) => ({
-        value: challenge.id,
-        label: `C${challenge.number} — ${challenge.title}`,
-      })),
-    [snapshot],
-  );
-
-  const roundOptions = useMemo(() => {
-    const numberByChallenge = new Map(
-      (snapshot?.challenges ?? []).map((c) => [c.id, c.number]),
-    );
-    return [...rounds]
-      .sort((a, b) => {
-        const ca = numberByChallenge.get(a.challenge_id) ?? 99;
-        const cb = numberByChallenge.get(b.challenge_id) ?? 99;
-        return ca === cb ? a.number - b.number : ca - cb;
-      })
-      .map((round) => ({
-        value: round.id,
-        label: `C${numberByChallenge.get(round.challenge_id) ?? '?'} R${round.number} — ${playerName(
-          round.player_a_id,
-        )} vs ${playerName(round.player_b_id)}`,
-      }));
-  }, [rounds, snapshot, playerName]);
 
   const playerOptions = useMemo(
     () =>
@@ -362,15 +415,40 @@ export default function DisplayControlPage() {
     [snapshot],
   );
 
+  /** What auto-detection resolves to right now, printed on the FOLLOW LIVE row. */
+  const autoDescription = useMemo(() => {
+    const challenge = snapshot?.currentChallenge ?? null;
+    const round = snapshot?.currentRound ?? null;
+    if (!challenge) return undefined;
+    const head = `C${challenge.number} ${challenge.title}`;
+    return round
+      ? `${head} · R${round.number} — ${playerName(round.player_a_id)} vs ${playerName(round.player_b_id)}`
+      : head;
+  }, [snapshot, playerName]);
+
+  // --- what each output is pinned to ---------------------------------------
+
+  const programTarget = useMemo(
+    () => targetFromPayload(programPayload, rounds),
+    [programPayload, rounds],
+  );
+  const previewTarget = useMemo(
+    () => targetFromPayload(previewPayload, rounds),
+    [previewPayload, rounds],
+  );
+  const programPinned = isPinned(programPayload);
+  const previewPinned = isPinned(previewPayload);
+
+  const describe = useCallback(
+    (t: DisplayTarget) => describeTarget(t, challenges, rounds, playersById),
+    [challenges, rounds, playersById],
+  );
+
   /** One field's value, written the way an operator reads it. */
   const describeValue = useCallback(
     (field: ScenePayloadField, raw: unknown): string => {
       const value = String(raw);
       switch (field.kind) {
-        case 'challenge':
-          return challengeOptions.find((o) => o.value === value)?.label ?? value;
-        case 'round':
-          return roundOptions.find((o) => o.value === value)?.label ?? value;
         case 'player':
           return playerOptions.find((o) => o.value === value)?.label ?? value;
         case 'ceremonyPhase': {
@@ -381,14 +459,16 @@ export default function DisplayControlPage() {
           return value;
       }
     },
-    [challengeOptions, roundOptions, playerOptions],
+    [playerOptions],
   );
 
+  /** The non-pin half of a payload, for the small print under a monitor. */
   const describePayload = useCallback(
     (scene: DisplayScene | null, payload: Record<string, unknown>): string[] => {
       if (!scene) return [];
       return SCENE_BY_ID[scene].fields
         .filter((field) => {
+          if (PIN_KEYS.has(field.key)) return false;
           const value = payload[field.key];
           return value !== undefined && value !== null && value !== '';
         })
@@ -397,14 +477,19 @@ export default function DisplayControlPage() {
     [describeValue],
   );
 
-  const draftPayload = useMemo(() => buildPayload(selected, draft), [selected, draft]);
+  const scenePayload = useMemo(() => buildPayload(selected, draft), [selected, draft]);
+  const draftPayload = useMemo(
+    () => ({ ...scenePayload, ...targetPayload(target) }),
+    [scenePayload, target],
+  );
   const draftMissing = useMemo(
-    () => missingSceneFields(selected, draftPayload),
-    [selected, draftPayload],
+    () => missingFields(selected, draftPayload, target),
+    [selected, draftPayload, target],
   );
   const previewMissing = useMemo(
-    () => (previewScene ? missingSceneFields(previewScene, previewPayload) : []),
-    [previewScene, previewPayload],
+    () =>
+      previewScene ? missingFields(previewScene, previewPayload, previewTarget) : [],
+    [previewScene, previewPayload, previewTarget],
   );
 
   function selectScene(scene: DisplayScene): void {
@@ -432,7 +517,11 @@ export default function DisplayControlPage() {
           scene: selected,
           payload: draftPayload,
         }),
-      { success: `${sceneTitle(selected)} is in preview.` },
+      {
+        success: `${sceneTitle(selected)} is in preview — ${
+          target.kind === 'auto' ? 'following live' : describe(target)
+        }.`,
+      },
     );
     if (result.ok) void refreshDisplay();
   }
@@ -498,26 +587,62 @@ export default function DisplayControlPage() {
     if (result.ok) void refreshDisplay();
   }
 
+  /**
+   * Drop the pin on the program output.
+   *
+   * The scene is left exactly as it is and the payload is rewritten without
+   * `challengeId` or `roundId`, which is the entire mechanism: with neither key
+   * present the wall goes back to auto-detecting the live challenge and round.
+   */
+  async function followLive(): Promise<void> {
+    const result = await runner.run(
+      () =>
+        setDisplayScene({
+          idempotencyKey: newIdempotencyKey('program-follow-live'),
+          deviceId,
+          scene: programScene,
+          payload: withoutTarget(programPayload),
+        }),
+      { success: 'The wall is following the live challenge and round again.' },
+    );
+    if (result.ok) {
+      setTargetOverride(FOLLOW_LIVE);
+      void refreshDisplay();
+    }
+  }
+
   // --- render --------------------------------------------------------------
 
   const descriptor = SCENE_BY_ID[selected];
   const programDetail = describePayload(programScene, programPayload);
   const previewDetail = describePayload(previewScene, previewPayload);
   const eventLive = snapshot?.event.status === 'live';
+  const targetChanged = !sameTarget(target, programTarget);
 
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Run the show"
         title="Display control"
-        description="Preview on the left, program on the right. Nothing reaches the wall until you take it there."
+        description="Preview on the left, program on the right. Nothing reaches the wall until you take it there — and the wall shows the challenge and round you name here, not the one it guesses."
         actions={
-          <Toggle
-            checked={monitorsOn}
-            onCheckedChange={setMonitorsOn}
-            label="Live monitors"
-            description="Turn off on a weak connection."
-          />
+          <>
+            <Link
+              href="/admin/challenges"
+              className={cn(
+                'bg-surface-raised text-ink ring-border hover:bg-mist',
+                'inline-flex h-10 items-center gap-2 rounded-md px-4 text-[0.8125rem] font-semibold ring-1',
+              )}
+            >
+              Challenges →
+            </Link>
+            <Toggle
+              checked={monitorsOn}
+              onCheckedChange={setMonitorsOn}
+              label="Live monitors"
+              description="Turn off on a weak connection."
+            />
+          </>
         }
       />
 
@@ -544,6 +669,24 @@ export default function DisplayControlPage() {
             </p>
           </div>
 
+          {/* The pin state, stated rather than implied. */}
+          <div className="min-w-0">
+            <p className="u-eyebrow text-text-muted text-eyebrow">Looking at</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusPill
+                label={programPinned ? 'PINNED — MANUAL' : 'FOLLOWING LIVE'}
+                tone={programPinned ? 'draw' : 'accent'}
+                glyph={programPinned ? '⚑' : '↻'}
+                size="sm"
+              />
+            </div>
+            <p className="text-ink mt-0.5 max-w-md text-[0.8125rem] leading-body break-words">
+              {programPinned
+                ? describe(programTarget)
+                : (autoDescription ?? 'Nothing is live yet.')}
+            </p>
+          </div>
+
           <div className="min-w-0">
             <p className="u-eyebrow text-text-muted text-eyebrow">Lined up in preview</p>
             <p className="text-ink truncate text-[1.0625rem] font-semibold">
@@ -551,9 +694,9 @@ export default function DisplayControlPage() {
             </p>
             <p className="text-text-muted text-[0.75rem] leading-body break-words">
               {previewScene
-                ? previewDetail.length > 0
-                  ? previewDetail.join(' · ')
-                  : 'No payload'
+                ? previewPinned
+                  ? describe(previewTarget)
+                  : 'Following live'
                 : 'Load a scene below.'}
             </p>
           </div>
@@ -568,6 +711,19 @@ export default function DisplayControlPage() {
             onClick={() => void take()}
           >
             TAKE LIVE
+          </AdminButton>
+          <AdminButton
+            variant="secondary"
+            size="lg"
+            disabled={!programPinned}
+            title={
+              programPinned
+                ? 'Clears the pin so the wall follows the live challenge and round again.'
+                : 'The wall is already following live.'
+            }
+            onClick={() => void followLive()}
+          >
+            FOLLOW LIVE
           </AdminButton>
           <AdminButton
             variant="danger"
@@ -599,6 +755,49 @@ export default function DisplayControlPage() {
         </Callout>
       ) : null}
 
+      {/* ---- The override ---- */}
+      <Panel
+        title="What the wall is looking at"
+        description="Pick the challenge and the round yourself. This travels with the scene into preview and on to air, and it beats anything the wall would work out on its own."
+        actions={
+          <StatusPill
+            label={target.kind === 'auto' ? 'DRAFT — FOLLOW LIVE' : 'DRAFT — PINNED'}
+            tone={target.kind === 'auto' ? 'accent' : 'draw'}
+            glyph={target.kind === 'auto' ? '↻' : '⚑'}
+            size="sm"
+          />
+        }
+      >
+        <div className="space-y-4">
+          <DisplayTargetPicker
+            challenges={challenges}
+            rounds={rounds}
+            playersById={playersById}
+            teamsByCode={snapshot?.teamsByCode}
+            value={target}
+            onChange={setTargetOverride}
+            programTarget={programPinned ? programTarget : FOLLOW_LIVE}
+            autoDescription={autoDescription}
+            disabled={runner.pending}
+          />
+
+          {targetChanged ? (
+            <Callout tone="info" title="This is not on the wall yet">
+              The wall is {programPinned ? `pinned to ${describe(programTarget)}` : 'following live'}.
+              What you have picked here goes out with the next Load into preview → TAKE LIVE,
+              or with Cut straight to air.
+            </Callout>
+          ) : null}
+
+          {challenges.length > 0 && rounds.length === 0 ? (
+            <Callout tone="warning" title="No rounds could be read">
+              The challenge list is available but its rounds are not, so only whole challenges
+              can be pinned. Reload the page once the connection recovers.
+            </Callout>
+          ) : null}
+        </div>
+      </Panel>
+
       {/* ---- Multiviewer ---- */}
       <Panel
         title="Multiviewer"
@@ -617,7 +816,14 @@ export default function DisplayControlPage() {
             reloadKey={reloadKey}
             enabled={monitorsOn}
             sceneLabel={previewScene ? sceneTitle(previewScene) : 'Nothing in preview'}
-            detail={previewDetail}
+            detail={
+              previewScene
+                ? [
+                    previewPinned ? `Pinned: ${describe(previewTarget)}` : 'Following live',
+                    ...previewDetail,
+                  ]
+                : previewDetail
+            }
           />
           <Monitor
             label="program"
@@ -626,7 +832,10 @@ export default function DisplayControlPage() {
             reloadKey={reloadKey}
             enabled={monitorsOn}
             sceneLabel={sceneTitle(programScene)}
-            detail={programDetail}
+            detail={[
+              programPinned ? `Pinned: ${describe(programTarget)}` : 'Following live',
+              ...programDetail,
+            ]}
           />
         </div>
       </Panel>
@@ -643,6 +852,8 @@ export default function DisplayControlPage() {
               const active = scene.scene === selected;
               const onAir = scene.scene === programScene;
               const inPreview = scene.scene === previewScene;
+              const ownFields = scene.fields.filter((f) => !PIN_KEYS.has(f.key));
+              const usesPin = scene.fields.length !== ownFields.length;
 
               return (
                 <li key={scene.scene}>
@@ -688,12 +899,13 @@ export default function DisplayControlPage() {
                       <span className="text-text-muted mt-0.5 block text-[0.75rem] leading-body">
                         {scene.purpose}
                       </span>
-                      {scene.fields.length > 0 ? (
+                      {ownFields.length > 0 || usesPin ? (
                         <span className="u-label text-text-muted mt-1.5 block text-[0.625rem]">
                           Needs:{' '}
-                          {scene.fields
-                            .map((f) => (f.required ? `${f.label}*` : f.label))
-                            .join(' · ')}
+                          {[
+                            ...(usesPin ? ['the challenge / round above'] : []),
+                            ...ownFields.map((f) => (f.required ? `${f.label}*` : f.label)),
+                          ].join(' · ')}
                         </span>
                       ) : null}
                     </span>
@@ -712,107 +924,118 @@ export default function DisplayControlPage() {
             description={descriptor.purpose}
           >
             <div className="space-y-5">
-              {descriptor.fields.length === 0 ? (
+              <div className="ring-border-subtle rounded-md px-4 py-3 ring-1">
+                <p className="u-label text-text-muted text-eyebrow">
+                  This scene will look at
+                </p>
+                <p className="text-ink text-[0.875rem] font-semibold break-words">
+                  {target.kind === 'auto'
+                    ? `Whatever is live${autoDescription ? ` — now ${autoDescription}` : ''}`
+                    : describe(target)}
+                </p>
+                <p className="text-text-muted mt-1 text-[0.75rem] leading-body">
+                  Change it in “What the wall is looking at” above.
+                </p>
+              </div>
+
+              {descriptor.fields.filter((f) => !PIN_KEYS.has(f.key)).length === 0 ? (
                 <p className="text-text-secondary text-[0.8125rem] leading-body">
-                  This scene takes no payload. Load it and take it.
+                  This scene takes nothing else. Load it and take it.
                 </p>
               ) : (
-                descriptor.fields.map((field) => {
-                  const id = `scene-field-${selected}-${field.key}`;
-                  const value = draft[field.key] ?? '';
-                  const missing =
-                    Boolean(field.required) && value.trim() === '';
+                descriptor.fields
+                  .filter((field) => !PIN_KEYS.has(field.key))
+                  .map((field) => {
+                    const id = `scene-field-${selected}-${field.key}`;
+                    const value = draft[field.key] ?? '';
+                    const missing = Boolean(field.required) && value.trim() === '';
 
-                  const hint = field.hint ?? undefined;
-                  const error = missing ? 'This scene will not go to air without it.' : null;
+                    const hint = field.hint ?? undefined;
+                    const error = missing ? 'This scene will not go to air without it.' : null;
 
-                  if (field.kind === 'boolean') {
-                    return (
-                      <Toggle
-                        key={field.key}
-                        checked={value === 'true'}
-                        onCheckedChange={(checked) =>
-                          patch(field.key, checked ? 'true' : 'false')
-                        }
-                        label={field.label}
-                        description={hint}
-                      />
-                    );
-                  }
-
-                  if (field.kind === 'number') {
-                    return (
-                      <Field key={field.key} label={field.label} htmlFor={id} hint={hint} error={error}>
-                        <NumberInput
-                          id={id}
-                          value={value === '' ? null : Number(value)}
-                          min={field.min}
-                          max={field.max}
-                          invalid={missing}
-                          onValueChange={(next) =>
-                            patch(field.key, next === null ? '' : String(next))
+                    if (field.kind === 'boolean') {
+                      return (
+                        <Toggle
+                          key={field.key}
+                          checked={value === 'true'}
+                          onCheckedChange={(checked) =>
+                            patch(field.key, checked ? 'true' : 'false')
                           }
+                          label={field.label}
+                          description={hint}
                         />
-                      </Field>
-                    );
-                  }
+                      );
+                    }
 
-                  if (field.kind === 'text') {
+                    if (field.kind === 'number') {
+                      return (
+                        <Field key={field.key} label={field.label} htmlFor={id} hint={hint} error={error}>
+                          <NumberInput
+                            id={id}
+                            value={value === '' ? null : Number(value)}
+                            min={field.min}
+                            max={field.max}
+                            invalid={missing}
+                            onValueChange={(next) =>
+                              patch(field.key, next === null ? '' : String(next))
+                            }
+                          />
+                        </Field>
+                      );
+                    }
+
+                    if (field.kind === 'text') {
+                      return (
+                        <Field key={field.key} label={field.label} htmlFor={id} hint={hint} error={error}>
+                          <TextInput
+                            id={id}
+                            value={value}
+                            maxLength={160}
+                            invalid={missing}
+                            onChange={(event) => patch(field.key, event.target.value)}
+                          />
+                        </Field>
+                      );
+                    }
+
+                    const options =
+                      field.kind === 'player'
+                        ? playerOptions
+                        : CEREMONY_CUES.map((cue) => ({
+                            value: cue.phase,
+                            label: `${cue.cue} — ${cue.title}`,
+                          }));
+
                     return (
-                      <Field key={field.key} label={field.label} htmlFor={id} hint={hint} error={error}>
-                        <TextInput
+                      <Field
+                        key={field.key}
+                        label={field.label}
+                        htmlFor={id}
+                        hint={
+                          field.kind === 'ceremonyPhase' && value
+                            ? `TV renders phase “${resolveCeremonyPhase(value)}”. Drive the sequence from the Ceremony screen.`
+                            : hint
+                        }
+                        error={error}
+                      >
+                        <SelectInput
                           id={id}
                           value={value}
-                          maxLength={160}
                           invalid={missing}
                           onChange={(event) => patch(field.key, event.target.value)}
-                        />
+                        >
+                          <option value="">
+                            {field.required ? 'Choose one…' : 'None'}
+                          </option>
+                          {options.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </SelectInput>
                       </Field>
                     );
-                  }
-
-                  const options =
-                    field.kind === 'challenge'
-                      ? challengeOptions
-                      : field.kind === 'round'
-                        ? roundOptions
-                        : field.kind === 'player'
-                          ? playerOptions
-                          : CEREMONY_CUES.map((cue) => ({
-                              value: cue.phase,
-                              label: `${cue.cue} — ${cue.title}`,
-                            }));
-
-                  return (
-                    <Field
-                      key={field.key}
-                      label={field.label}
-                      htmlFor={id}
-                      hint={
-                        field.kind === 'ceremonyPhase' && value
-                          ? `TV renders phase “${resolveCeremonyPhase(value)}”. Drive the sequence from the Ceremony screen.`
-                          : hint
-                      }
-                      error={error}
-                    >
-                      <SelectInput
-                        id={id}
-                        value={value}
-                        invalid={missing}
-                        onChange={(event) => patch(field.key, event.target.value)}
-                      >
-                        <option value="">
-                          {field.required ? 'Choose one…' : 'None'}
-                        </option>
-                        {options.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </SelectInput>
-                    </Field>
-                  );
-                })
+                  })
               )}
 
               {draftMissing.length > 0 ? (
@@ -868,6 +1091,12 @@ export default function DisplayControlPage() {
                 </dd>
               </div>
               <div className="min-w-0 space-y-1">
+                <dt className="u-label text-text-muted text-eyebrow">Program pin</dt>
+                <dd className="text-ink text-[0.9375rem] break-words">
+                  {programPinned ? describe(programTarget) : 'None — following live'}
+                </dd>
+              </div>
+              <div className="min-w-0 space-y-1">
                 <dt className="u-label text-text-muted text-eyebrow">Ceremony phase</dt>
                 <dd className="text-ink text-[0.9375rem]">
                   {displayState?.ceremony_phase ?? 'Not started'}
@@ -882,7 +1111,12 @@ export default function DisplayControlPage() {
             </dl>
 
             <p className="text-text-muted mt-4 text-[0.75rem] leading-body">
-              The closing sequence is driven from{' '}
+              A challenge that will not leave the wall is usually a challenge nobody closed —
+              end it on{' '}
+              <Link href="/admin/challenges" className="text-aqua-800 hover:text-aqua-900 underline underline-offset-2">
+                Challenges
+              </Link>
+              . The closing sequence is driven from{' '}
               <Link href="/admin/ceremony" className="text-aqua-800 hover:text-aqua-900 underline underline-offset-2">
                 Ceremony
               </Link>
@@ -912,7 +1146,12 @@ export default function DisplayControlPage() {
           <p className="u-label text-text-muted text-eyebrow">Going on air</p>
           <p className="text-ink text-[0.9375rem] font-semibold">{descriptor.title}</p>
           <p className="text-text-muted text-[0.75rem] leading-body">
-            {describePayload(selected, draftPayload).join(' · ') || 'No payload'}
+            {target.kind === 'auto'
+              ? 'Following live'
+              : `Pinned to ${describe(target)}`}
+            {describePayload(selected, draftPayload).length > 0
+              ? ` · ${describePayload(selected, draftPayload).join(' · ')}`
+              : null}
           </p>
           <p className="text-text-muted mt-2 text-[0.75rem] leading-body">
             Recorded in the audit log as <code>display.program_set</code>, against your name and

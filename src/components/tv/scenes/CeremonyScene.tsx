@@ -614,7 +614,10 @@ function TopPlayerFrame({
       style={teamAccentVars(team?.color, player.teamCode)}
       className="absolute inset-0 overflow-hidden"
     >
-      <div className="grid h-full w-full" style={{ gridTemplateColumns: '46% 54%' }}>
+      <div
+        className="grid h-full w-full"
+        style={{ gridTemplateColumns: '46% 54%', gridTemplateRows: 'minmax(0, 1fr)' }}
+      >
         <motion.div
           initial={motionOn ? { opacity: 0, scale: 1.04 } : false}
           animate={{ opacity: 1, scale: 1 }}
@@ -735,7 +738,11 @@ function TopPlayerStatsFrame({
   return (
     <div
       className="grid h-full w-full gap-14"
-      style={{ ...teamAccentVars(team?.color, player.teamCode), gridTemplateColumns: '34% 1fr' }}
+      style={{
+        ...teamAccentVars(team?.color, player.teamCode),
+        gridTemplateColumns: '34% 1fr',
+        gridTemplateRows: 'minmax(0, 1fr)',
+      }}
     >
       <motion.div
         initial={motionOn ? { opacity: 0, x: -40 } : false}
@@ -917,7 +924,7 @@ function ClosingFrame({
 
       <div
         className="grid min-h-0 flex-1 gap-8"
-        style={{ gridTemplateColumns: 'minmax(0,1fr) 560px' }}
+        style={{ gridTemplateColumns: 'minmax(0,1fr) 560px', gridTemplateRows: 'minmax(0, 1fr)' }}
       >
         <div className="flex min-h-0 flex-col gap-6">
           {championSides.map((champion) => (

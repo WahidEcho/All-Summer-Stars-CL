@@ -81,6 +81,7 @@ export {
   nameParts,
   portraitSrc,
   rankOf,
+  sizedPortraitSrc,
   slotLabelOf,
   surnameScale,
   teamCodeOf,

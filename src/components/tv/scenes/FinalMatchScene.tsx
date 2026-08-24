@@ -340,7 +340,10 @@ export function FinalMatchScene({ model, payload }: SceneProps) {
       ) : (
         <div
           className="grid h-full min-h-0 gap-8"
-          style={{ gridTemplateColumns: '320px minmax(0,1fr) 320px' }}
+          style={{
+            gridTemplateColumns: '320px minmax(0,1fr) 320px',
+            gridTemplateRows: 'minmax(0, 1fr)',
+          }}
         >
           <SquadStrip
             side={model.a}
@@ -841,7 +844,7 @@ function HalftimePanel({
   return (
     <div
       className="grid h-full min-h-0 gap-10"
-      style={{ gridTemplateColumns: 'minmax(0,1fr) 540px' }}
+      style={{ gridTemplateColumns: 'minmax(0,1fr) 540px', gridTemplateRows: 'minmax(0, 1fr)' }}
     >
       <div className="flex min-h-0 flex-col gap-7">
         <SceneHeadline eyebrow={`${model.challengeLabel} · FINAL MATCH`} size="lg" align="start">
@@ -1008,7 +1011,7 @@ function GoalTakeover({
 
         {step === 'scorer' ? (
           <Frame key="scorer" className="flex-row items-stretch justify-start">
-            <div className="relative w-[46%] shrink-0">
+            <div className="relative w-[46%] shrink-0 overflow-hidden">
               {scorer ? (
                 <PlayerPhoto player={scorer} fit="cover" priority />
               ) : (

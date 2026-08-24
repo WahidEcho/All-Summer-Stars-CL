@@ -29,6 +29,30 @@ export const CONTENT_PAD_Y = 24;
 export const HEADER_QR = 78;
 
 /**
+ * Height of the competition mark inside the header band.
+ *
+ * The lockup is roughly 2:1, so a mark asked for by *width* is half that tall —
+ * a 300px-wide mark stands 150px in a 120px band, which is how the wall ended
+ * up showing a lockup clipped along its top edge and overlapping the first row
+ * of the scene. Sizing by height instead keeps 16px of clear space above and
+ * below, and the width (~176px) still clears the 150px floor design.md sets.
+ */
+export const HEADER_MARK_H = 88;
+
+/**
+ * The exact height of the live-content row for a given furniture combination.
+ *
+ * The 1080px canvas is a three-row stack — header, content, ticker — and the
+ * content row is bounded to this, never to "whatever is left after the flex
+ * settles". A scene whose intrinsic content is taller is clipped rather than
+ * allowed to paint under the sponsor strip, which on the LED wall means a
+ * player's chin disappearing behind a sponsor logo.
+ */
+export function contentHeight(header: boolean, ticker: boolean): number {
+  return STAGE_H - (header ? HEADER_H : 0) - (ticker ? TICKER_H : 0);
+}
+
+/**
  * The ceremony runs as a sequence of operator-advanced phases. `ceremony_phase`
  * is a free-text column, so unknown values fall back to the opening slate
  * rather than rendering nothing on the wall.

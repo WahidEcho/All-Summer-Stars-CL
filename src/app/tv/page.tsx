@@ -25,8 +25,16 @@ export default async function TvProgramPage() {
   let display: DisplayStateRow | null = null;
 
   try {
-    snapshot = await loadEventSnapshot();
-    display = snapshot.displayState;
+    // Read the cut first so a pinned challenge/round shapes the very first
+    // frame too. Loading the snapshot first and the pin second would paint one
+    // frame of the auto-detected round before correcting itself.
+    const db = await serverDb();
+    display = await getDisplayState(db, await serverEventId());
+    const payload = (display?.program_payload ?? {}) as Record<string, unknown>;
+    const challengeId = typeof payload.challengeId === 'string' ? payload.challengeId : undefined;
+    const roundId = typeof payload.roundId === 'string' ? payload.roundId : undefined;
+    snapshot = await loadEventSnapshot({ challengeId, roundId });
+    display = snapshot.displayState ?? display;
   } catch {
     // The snapshot is the heavier read and the likelier one to fail. The scene
     // cut is a single small row, so it is still worth trying on its own — a wall

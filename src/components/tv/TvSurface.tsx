@@ -46,6 +46,12 @@ export interface TvSurfaceProps {
 
 const NEVER_CHANGES = () => () => {};
 
+/** Read a pinned entity id out of an untyped display payload. */
+function readId(payload: Record<string, unknown>, key: string): string | undefined {
+  const value = payload[key];
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
 /**
  * True only once the client has taken over.
  *
@@ -168,9 +174,24 @@ export function TvSurface({
   const live = sample === null;
   const hydrated = useHydrated();
 
-  const { snapshot } = useEventSnapshot({ initial: initialSnapshot, enabled: live });
+  // The display row is read first: when the operator has pinned a specific
+  // challenge or round to the scene, that pin decides which slice of the event
+  // the snapshot loads. Without it the wall can only ever show whatever the
+  // auto-detection considers "current", which strands it on a finished
+  // challenge the moment the next one starts.
   const { programScene, programPayload, previewScene, previewPayload, ceremonyPhase } =
     useDisplayState({ initial: initialDisplay, enabled: live });
+
+  const activePayload = preview && previewScene ? previewPayload : programPayload;
+  const pinnedChallengeId = readId(activePayload, 'challengeId');
+  const pinnedRoundId = readId(activePayload, 'roundId');
+
+  const { snapshot } = useEventSnapshot({
+    initial: initialSnapshot,
+    enabled: live,
+    challengeId: pinnedChallengeId,
+    roundId: pinnedRoundId,
+  });
 
   useScreenWakeLock(true);
 
@@ -201,7 +222,7 @@ export function TvSurface({
       ? (previewScene ?? programScene)
       : programScene;
 
-  const livePayload = preview && previewScene ? previewPayload : programPayload;
+  const livePayload = activePayload;
   const payload: Record<string, unknown> = useMemo(
     () =>
       sample

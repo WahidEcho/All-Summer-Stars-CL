@@ -109,6 +109,50 @@ export function portraitSrc(player: PlayerLike): string | null {
   return player.portrait_url || player.photo_url || null;
 }
 
+// ---------------------------------------------------------------------------
+// Delivery size
+// ---------------------------------------------------------------------------
+
+const STORAGE_OBJECT_PATH = '/storage/v1/object/public/';
+const STORAGE_RENDER_PATH = '/storage/v1/render/image/public/';
+
+/**
+ * Ask Supabase Storage to deliver a portrait at the size it will actually be
+ * painted at.
+ *
+ * The uploaded portraits are ~1120x1400 PNGs of about 2.3 MB each. The TV wall
+ * paints one into a box a few hundred pixels wide, so the original is roughly
+ * twenty times more data than the screen can use, and on a cold load the
+ * columns stand empty for about a second while it arrives — long enough to be
+ * visible on the wall when a scene changes.
+ *
+ * The render endpoint resizes on the CDN and content-negotiates WebP against
+ * the browser's own `Accept` header, which takes the same portrait to about
+ * 130 KB — a ~94% saving for no visible loss at broadcast size. It only ever
+ * rewrites this project's own public object URLs; anything else (an external
+ * address, a data URI, an already-signed URL) is handed back untouched, so a
+ * portrait hosted somewhere else keeps working exactly as before.
+ *
+ * The caller is expected to fall back to `src` if this address fails, which is
+ * what `PlayerPhoto` does — the optimisation can never cost us a photo.
+ */
+export function sizedPortraitSrc(src: string | null, width?: number): string | null {
+  if (!src || !width || !Number.isFinite(width) || width <= 0) return src;
+  const at = src.indexOf(STORAGE_OBJECT_PATH);
+  if (at === -1) return src;
+  // A URL that already carries a query is not a plain public object — leave it.
+  if (src.includes('?')) return src;
+
+  const rendered =
+    src.slice(0, at) + STORAGE_RENDER_PATH + src.slice(at + STORAGE_OBJECT_PATH.length);
+  // `resize=contain` is not optional. The endpoint defaults to `cover`, and
+  // `cover` with a width and no height keeps the *original* height — a 1122x1402
+  // portrait comes back 800x1402, a face squashed by nearly a third. `contain`
+  // fits the width and lets the height follow the aspect ratio, and is the
+  // smaller file of the two into the bargain.
+  return `${rendered}?width=${Math.round(width)}&resize=contain&quality=80`;
+}
+
 /** Shared props every card in the family accepts. */
 export interface PlayerCardBaseProps {
   player: PlayerLike;

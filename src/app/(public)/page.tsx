@@ -166,7 +166,10 @@ export default function PublicHome() {
       </Panel>
 
       {/* ----------------------------------------------------------- teams */}
-      <Panel eyebrow="The squads" title="Team A vs Team B">
+      <Panel
+        eyebrow="The squads"
+        title={`${teamLabel(snapshot.teamsByCode.A, 'A')} vs ${teamLabel(snapshot.teamsByCode.B, 'B')}`}
+      >
         <div className="grid gap-4 sm:grid-cols-2">
           {teams.map((team) => {
             const squad = snapshot.players.filter((p) => p.team_id === team.id);
