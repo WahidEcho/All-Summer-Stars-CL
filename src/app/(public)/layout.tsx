@@ -21,9 +21,13 @@ export default async function PublicLayout({ children }: LayoutProps<'/'>) {
   let initial: EventSnapshot | null = null;
   try {
     initial = await loadEventSnapshot();
-  } catch {
+  } catch (error) {
     // A cold or unreachable database must still render the shell — the client
     // retries and fills it in, rather than showing an error page to a crowd.
+    // But it must never fail *silently*: swallowing this turned a missing
+    // environment variable into a page stuck on "Connecting to the live event"
+    // with nothing in the logs to explain it. Log loudly, degrade quietly.
+    console.error('[swanlake] event snapshot unavailable — see /api/health', error);
     initial = null;
   }
 
