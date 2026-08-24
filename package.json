@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "migrate": "bash scripts/migrate.sh"
+    "migrate": "bash scripts/migrate.sh",
+    "vercel:env": "bash scripts/vercel-env.sh"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
