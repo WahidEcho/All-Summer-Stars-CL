@@ -8,9 +8,10 @@ import {
   type CeremonyPhase,
   type TvSampleOverride,
 } from '@/components/tv';
-import { getDisplayState } from '@/lib/data/queries';
-import { loadEventSnapshot, serverDb, serverEventId } from '@/lib/data/server';
+import { getDisplayState, getEventId } from '@/lib/data/queries';
+import { loadEventSnapshot, serverDb } from '@/lib/data/server';
 import type { EventSnapshot } from '@/lib/data/snapshot';
+import { EVENT_SLUG } from '@/lib/event';
 import type { DisplayStateRow } from '@/lib/types';
 
 /**
@@ -67,6 +68,11 @@ export default async function TvPreviewPage({ searchParams }: PageProps<'/tv/pre
   const params = await searchParams;
 
   const scene = parseSampleScene(one(params.scene));
+  const slugParam = one(params.event);
+  // Same rule as /tv: a well-formed slug selects that event, anything else
+  // falls back to the deployment's own.
+  const slug =
+    slugParam && /^[a-z0-9-]{1,80}$/.test(slugParam) ? slugParam : EVENT_SLUG;
   const phaseParam = one(params.phase);
   const payloadParam = parsePayloadParam(one(params.payload));
 
@@ -88,12 +94,12 @@ export default async function TvPreviewPage({ searchParams }: PageProps<'/tv/pre
   let display: DisplayStateRow | null = null;
 
   try {
-    snapshot = await loadEventSnapshot();
+    snapshot = await loadEventSnapshot({ slug });
     display = snapshot.displayState;
   } catch {
     try {
       const db = await serverDb();
-      display = await getDisplayState(db, await serverEventId());
+      display = await getDisplayState(db, await getEventId(db, slug));
     } catch {
       display = null;
     }
@@ -112,6 +118,7 @@ export default async function TvPreviewPage({ searchParams }: PageProps<'/tv/pre
       preview
       payloadOverride={payloadParam}
       ceremonyPhaseOverride={livePhase}
+      slug={slug}
     />
   );
 }

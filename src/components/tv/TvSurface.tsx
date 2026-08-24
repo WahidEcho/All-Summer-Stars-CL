@@ -42,6 +42,12 @@ export interface TvSurfaceProps {
   payloadOverride?: Record<string, unknown> | null;
   /** Preview-only: hold a ceremony phase without advancing the real one. */
   ceremonyPhaseOverride?: CeremonyPhase | null;
+  /**
+   * Event to render, by slug. Defaults to the deployment's own event.
+   * `?event=swanlake-rehearsal` on the TV routes feeds this, so one deployment
+   * can put the rehearsal event on a wall without touching production.
+   */
+  slug?: string;
 }
 
 const NEVER_CHANGES = () => () => {};
@@ -170,6 +176,7 @@ export function TvSurface({
   sample = null,
   payloadOverride = null,
   ceremonyPhaseOverride = null,
+  slug,
 }: TvSurfaceProps) {
   const live = sample === null;
   const hydrated = useHydrated();
@@ -180,7 +187,7 @@ export function TvSurface({
   // auto-detection considers "current", which strands it on a finished
   // challenge the moment the next one starts.
   const { programScene, programPayload, previewScene, previewPayload, ceremonyPhase } =
-    useDisplayState({ initial: initialDisplay, enabled: live });
+    useDisplayState({ initial: initialDisplay, enabled: live, slug });
 
   const activePayload = preview && previewScene ? previewPayload : programPayload;
   const pinnedChallengeId = readId(activePayload, 'challengeId');
@@ -189,6 +196,7 @@ export function TvSurface({
   const { snapshot } = useEventSnapshot({
     initial: initialSnapshot,
     enabled: live,
+    slug,
     challengeId: pinnedChallengeId,
     roundId: pinnedRoundId,
   });

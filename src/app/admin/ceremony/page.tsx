@@ -743,8 +743,16 @@ export default function CeremonyPage() {
                 label="Champion team"
                 value={champion ? champion.name : 'Level — no team winner'}
               />
-              <KeyValue label={`Team A`} value={teamPoints.A} mono />
-              <KeyValue label={`Team B`} value={teamPoints.B} mono />
+              <KeyValue
+                label={snapshot?.teamsByCode.A?.name ?? 'Team A'}
+                value={teamPoints.A}
+                mono
+              />
+              <KeyValue
+                label={snapshot?.teamsByCode.B?.name ?? 'Team B'}
+                value={teamPoints.B}
+                mono
+              />
             </dl>
 
             <div className="space-y-3">
