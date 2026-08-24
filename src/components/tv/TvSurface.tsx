@@ -261,6 +261,16 @@ export function TvSurface({
       ) : (
         <StandbySlate />
       )}
+      {/* Which build this wall is running. Debugging the display otherwise
+          means guessing whether a refresh actually picked up a deploy —
+          it demonstrably doesn't always. Faint, corner, out of the show. */}
+      <div
+        aria-hidden
+        data-build={process.env.NEXT_PUBLIC_BUILD_SHA}
+        className="text-ink/25 pointer-events-none absolute right-2 bottom-1 z-50 font-mono text-[11px]"
+      >
+        {process.env.NEXT_PUBLIC_BUILD_SHA}
+      </div>
     </BroadcastStage>
   );
 }
