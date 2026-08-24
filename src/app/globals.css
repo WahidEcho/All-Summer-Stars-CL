@@ -1,0 +1,606 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   SwanLake Football Stars — Shores & Scores Challenge
+   Design tokens.
+
+   Language: premium football broadcast x game-show energy x North Coast
+   summer light. LIGHT theme only — there is no dark mode. Deep ink is used
+   for readable type, never as a background field.
+
+   Everything below is exposed twice:
+     1. as a Tailwind v4 theme token (utility classes such as bg-aqua-400)
+     2. as a plain CSS custom property (var(--color-aqua-400)) for inline
+        styles, motion values and per-instance team accents.
+   ========================================================================== */
+
+@theme {
+  /* ---------------------------------------------------------------- colour
+     Event aqua. --color-aqua-400 is the literal brand value #90C6CB; the
+     rest of the ramp is tinted/shaded from it and stays in the same hue
+     family so tints never read as a different blue.                        */
+  --color-aqua-50: #f4fafb;
+  --color-aqua-100: #e6f4f5;
+  --color-aqua-200: #cde8eb;
+  --color-aqua-300: #b0d9de;
+  --color-aqua-400: #90c6cb; /* BRAND */
+  --color-aqua-500: #72b1b8;
+  --color-aqua-600: #55959d;
+  --color-aqua-700: #3d757e;
+  --color-aqua-800: #2b5860;
+  --color-aqua-900: #1d3f46;
+
+  /* Neutrals — white, warm off-white, sand, light grey-blue, deep ink. */
+  --color-white: #ffffff;
+  --color-cream: #fbf9f5; /* warm off-white — the default page field */
+  --color-sand: #f3efe7; /* warmer paper for ceremony / holding screens */
+  --color-mist: #eef4f6; /* light grey-blue */
+  --color-haze: #e2ecef; /* light grey-blue, one step down */
+  --color-slate: #cfdde2; /* the strongest neutral rule colour */
+
+  --color-ink: #231f20; /* SwanLake ink — primary type */
+  --color-ink-soft: #4a4344; /* secondary type on white */
+  --color-navy: #0e2a33; /* readable navy for type sitting on aqua */
+  --color-navy-soft: #2b5964; /* muted navy for labels on aqua */
+
+  /* ---------------------------------------------------- semantic surfaces */
+  --color-surface: var(--color-cream);
+  --color-surface-raised: var(--color-white);
+  --color-surface-sunken: var(--color-mist);
+  --color-surface-accent: var(--color-aqua-100);
+  --color-surface-accent-strong: var(--color-aqua-400);
+  --color-surface-scrim: color-mix(in oklab, var(--color-navy) 62%, transparent);
+
+  /* -------------------------------------------------------- semantic text */
+  --color-text-primary: var(--color-ink);
+  --color-text-secondary: var(--color-ink-soft);
+  --color-text-muted: #6d6768;
+  --color-text-inverse: var(--color-white);
+  --color-text-on-aqua: var(--color-navy);
+  --color-text-on-aqua-muted: var(--color-navy-soft);
+
+  /* ------------------------------------------------------------- borders */
+  --color-border-subtle: #e4e9eb;
+  --color-border: var(--color-slate);
+  --color-border-strong: var(--color-aqua-600);
+  --color-border-ink: color-mix(in oklab, var(--color-ink) 18%, transparent);
+
+  /* ----------------------------------------------------- state / meaning
+     All four clear WCAG AA (>= 4.5:1) against white and cream. State is
+     never signalled by colour alone — every component that uses these also
+     carries a glyph or a word.                                            */
+  --color-live: #c8201a; /* LIVE / recording / danger        7.0:1 on white */
+  --color-live-soft: #fdeceb;
+  --color-winner: #0d6f4d; /* winner / positive delta         5.3:1 on white */
+  --color-winner-soft: #e6f4ee;
+  --color-draw: #7d5a10; /* draw / holding / caution        5.6:1 on white */
+  --color-draw-soft: #fbf1dc;
+  --color-pending: #5c6b70; /* not played yet                  5.5:1 on white */
+  --color-pending-soft: #eef2f3;
+  --color-focus: #1f6f7c;
+
+  /* ------------------------------------------------------ podium / ranks
+     Metallics rendered as readable pigments rather than gradients, so a
+     rank label still passes AA on white and on cream.                     */
+  --color-gold: #a3781c; /* #1                              4.9:1 on white */
+  --color-gold-soft: #f7eed6;
+  --color-silver: #6b7a80; /* #2                              4.7:1 on white */
+  --color-silver-soft: #eef1f2;
+  --color-bronze: #8a5324; /* #3                              6.2:1 on white */
+  --color-bronze-soft: #f6ece3;
+
+  /* ------------------------------------------------------- team accents
+     Defaults mirror supabase/migrations/0002_seed_event.sql. Components
+     accept a live team colour and write it into --team-accent at runtime,
+     so these are the fallback slots, not hardcoded truth.                 */
+  --color-team-a: #0e6ba8;
+  --color-team-a-soft: #8fd4e8;
+  --color-team-b: #d3323c;
+  --color-team-b-soft: #f5a3a8;
+  --color-team-neutral: #55959d;
+
+  /* ------------------------------------------- sponsor brand colours
+     Sponsor logos ALWAYS render in their original colours. These exist for
+     rules, underlines and focus rings beside a sponsor logo — never to
+     recolour the logo itself.                                             */
+  --color-brand-yalla-sahel: #02bbc1;
+  --color-brand-tellr: #34b4b4;
+  --color-brand-swanlake: #231f20;
+  --color-brand-hassan-allam: #1b355c;
+  --color-brand-sports-united: #c62029;
+  --color-brand-move-beyond: #231f20;
+
+  /* ------------------------------------------------------------ radius */
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.875rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.75rem;
+  --radius-2xl: 2.5rem;
+  --radius-pill: 999rem;
+
+  /* ------------------------------------------------------------ shadows
+     Light, warm, low-contrast. Nothing on this platform should look like a
+     dark UI card floating over a dark field.                              */
+  --shadow-hairline: 0 0 0 1px var(--color-border-subtle);
+  --shadow-card: 0 1px 2px rgb(35 31 32 / 0.04), 0 12px 32px -14px rgb(14 42 51 / 0.22);
+  --shadow-raised: 0 2px 4px rgb(35 31 32 / 0.05), 0 26px 60px -26px rgb(14 42 51 / 0.3);
+  --shadow-hero: 0 40px 90px -40px rgb(14 42 51 / 0.42);
+  --shadow-glow-aqua: 0 0 0 1px var(--color-aqua-300), 0 18px 46px -20px rgb(85 149 157 / 0.55);
+  --shadow-inset-rule: inset 0 -1px 0 0 var(--color-border-subtle);
+
+  /* --------------------------------------------------------- typography */
+  --tracking-condensed: -0.02em;
+  --tracking-display: -0.015em;
+  --tracking-label: 0.14em;
+  --tracking-eyebrow: 0.22em;
+
+  --leading-slab: 0.84; /* stacked oversized surnames  */
+  --leading-numeral: 0.78; /* score numerals              */
+  --leading-tight: 1.05;
+  --leading-body: 1.5;
+
+  /* Broadcast type scale. The public/LED surfaces normally override the
+     component root font-size and let the internal em-based lockups scale,
+     but these are the fixed steps for admin and web surfaces.             */
+  --text-eyebrow: 0.6875rem;
+  --text-eyebrow--line-height: 1.1;
+  --text-eyebrow--letter-spacing: 0.22em;
+  --text-label: 0.8125rem;
+  --text-label--line-height: 1.2;
+  --text-label--letter-spacing: 0.14em;
+  --text-body: 1rem;
+  --text-body--line-height: 1.5;
+  --text-lede: 1.25rem;
+  --text-lede--line-height: 1.4;
+  --text-h3: 1.75rem;
+  --text-h3--line-height: 1.1;
+  --text-h2: 2.5rem;
+  --text-h2--line-height: 1.02;
+  --text-h1: 3.5rem;
+  --text-h1--line-height: 0.98;
+  --text-display-sm: 4.5rem;
+  --text-display-sm--line-height: 0.9;
+  --text-display-md: 6rem;
+  --text-display-md--line-height: 0.88;
+  --text-display-lg: 8rem;
+  --text-display-lg--line-height: 0.86;
+  --text-display-xl: 11rem;
+  --text-display-xl--line-height: 0.84;
+  --text-score-sm: 2.75rem;
+  --text-score-sm--line-height: 0.78;
+  --text-score-md: 4.5rem;
+  --text-score-md--line-height: 0.78;
+  --text-score-lg: 7rem;
+  --text-score-lg--line-height: 0.78;
+  --text-score-xl: 10.5rem;
+  --text-score-xl--line-height: 0.78;
+  --text-score-2xl: 15rem; /* ceremony / goal takeover only */
+  --text-score-2xl--line-height: 0.76;
+
+  /* ------------------------------------------------------------ layout */
+  --aspect-broadcast: 16 / 9;
+  --aspect-portrait-card: 3 / 4;
+  --aspect-event-mark: 2 / 1; /* the cropped competition logo lockup */
+
+  /* ---------------------------------------------------------- easing */
+  --ease-broadcast: cubic-bezier(0.16, 1, 0.3, 1); /* decisive settle */
+  --ease-entrance: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-exit: cubic-bezier(0.55, 0, 1, 0.45);
+  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-overshoot: cubic-bezier(0.34, 1.4, 0.64, 1);
+
+  /* --------------------------------------------------------- keyframes */
+  --animate-ticker: ticker var(--ticker-duration, 40s) linear infinite;
+  --animate-drift-slow: drift-slow 46s ease-in-out infinite;
+  --animate-drift-slower: drift-slow 74s ease-in-out infinite reverse;
+  --animate-twinkle: twinkle 9s ease-in-out infinite;
+  --animate-sweep: sweep 13s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+  --animate-live-pulse: live-pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-attempt-pulse: attempt-pulse 1.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-logo-breathe: logo-breathe 13s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-crossfade: crossfade 9s ease-in-out infinite;
+  --animate-star-spin: star-spin 180s linear infinite;
+  --animate-star-spin-reverse: star-spin 240s linear infinite reverse;
+  --animate-star-breathe: star-breathe 26s ease-in-out infinite;
+  --animate-dot-load: dot-load 1.2s ease-in-out infinite;
+
+  @keyframes star-spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @keyframes star-breathe {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 0.9;
+    }
+    50% {
+      transform: scale(1.06);
+      opacity: 1;
+    }
+  }
+  @keyframes dot-load {
+    0%,
+    80%,
+    100% {
+      opacity: 0.25;
+      transform: translateY(0);
+    }
+    40% {
+      opacity: 1;
+      transform: translateY(-18%);
+    }
+  }
+  @keyframes ticker {
+    from {
+      transform: translate3d(0, 0, 0);
+    }
+    to {
+      transform: translate3d(-50%, 0, 0);
+    }
+  }
+  @keyframes drift-slow {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    50% {
+      transform: translate3d(-1.6%, 1.1%, 0) scale(1.035);
+    }
+  }
+  @keyframes twinkle {
+    0%,
+    100% {
+      opacity: 0.35;
+    }
+    50% {
+      opacity: 0.85;
+    }
+  }
+  @keyframes sweep {
+    0% {
+      transform: translate3d(-120%, 0, 0) skewX(-14deg);
+      opacity: 0;
+    }
+    12% {
+      opacity: 0.7;
+    }
+    38% {
+      opacity: 0;
+    }
+    100% {
+      transform: translate3d(220%, 0, 0) skewX(-14deg);
+      opacity: 0;
+    }
+  }
+  @keyframes live-pulse {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.45;
+      transform: scale(0.82);
+    }
+  }
+  @keyframes attempt-pulse {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.22);
+      opacity: 0.7;
+    }
+  }
+  @keyframes logo-breathe {
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    45% {
+      transform: scale(1.03);
+    }
+  }
+  @keyframes crossfade {
+    0%,
+    44% {
+      opacity: 1;
+    }
+    50%,
+    94% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+}
+
+@theme inline {
+  /* next/font injects the three --font-* variables on <html>. */
+  --font-display: var(--font-anton), "Haettenschweiler", "Arial Narrow Bold", "Impact",
+    sans-serif;
+  --font-numeral: var(--font-archivo), "Helvetica Neue", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* ==========================================================================
+   Motion duration tokens.
+
+   Not a Tailwind namespace — used through var() in CSS, in arbitrary values
+   (duration-[var(--dur-score)]) and in motion/react transitions via the
+   mirrored constants in @/components/ui/motion-tokens.
+   ========================================================================== */
+:root {
+  --dur-instant-min: 100ms;
+  --dur-instant: 140ms;
+  --dur-instant-max: 160ms;
+
+  --dur-score-min: 250ms;
+  --dur-score: 320ms;
+  --dur-score-max: 400ms;
+
+  --dur-card-min: 500ms;
+  --dur-card: 640ms;
+  --dur-card-max: 800ms;
+
+  --dur-hero-min: 800ms;
+  --dur-hero: 1000ms;
+  --dur-hero-max: 1200ms;
+
+  --dur-goal-min: 1200ms;
+  --dur-goal: 1500ms;
+  --dur-goal-max: 1800ms;
+
+  --dur-result-min: 1800ms;
+  --dur-result: 2300ms;
+  --dur-result-max: 2800ms;
+
+  /* Ambient loops. */
+  --dur-ambient-drift: 46s;
+  --dur-ambient-sweep: 13s;
+  --dur-ambient-breathe: 13s;
+
+  /* Scales every JS-driven transition; reduced motion drives it to 0. */
+  --motion-scale: 1;
+
+  /* Default team accent so a card always has something to draw with. */
+  --team-accent: var(--color-team-neutral);
+  --team-accent-soft: var(--color-aqua-200);
+  --team-accent-ink: var(--color-navy);
+
+  color-scheme: light;
+}
+
+/* ==========================================================================
+   Base
+   ========================================================================== */
+@layer base {
+  html {
+    background-color: var(--color-surface);
+    color: var(--color-text-primary);
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background-color: var(--color-surface);
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+    font-synthesis-weight: none;
+  }
+
+  /* Every clock, score and total in this product is tabular. */
+  :where(output, time, [data-numeral]) {
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: "tnum" 1, "lnum" 1;
+  }
+
+  ::selection {
+    background-color: var(--color-aqua-300);
+    color: var(--color-navy);
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--color-focus);
+    outline-offset: 3px;
+    border-radius: var(--radius-xs);
+  }
+
+  img,
+  svg,
+  video {
+    display: block;
+    max-width: 100%;
+  }
+}
+
+/* ==========================================================================
+   Reusable broadcast lockups
+   ========================================================================== */
+@layer components {
+  /* Oversized condensed sports display type. */
+  .u-display {
+    font-family: var(--font-display);
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-display);
+    line-height: var(--leading-slab);
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: "tnum" 1, "lnum" 1;
+  }
+
+  /* Heavy condensed tabular numerals — scores, clocks, totals. */
+  .u-numeral {
+    font-family: var(--font-numeral);
+    font-weight: 800;
+    font-stretch: 75%;
+    font-variation-settings: "wdth" 75, "wght" 800;
+    letter-spacing: var(--tracking-condensed);
+    line-height: var(--leading-numeral);
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: "tnum" 1, "lnum" 1;
+  }
+
+  /* Clocks want slightly less weight so the colon does not blob. */
+  .u-clock {
+    font-family: var(--font-numeral);
+    font-weight: 700;
+    font-stretch: 80%;
+    font-variation-settings: "wdth" 80, "wght" 700;
+    letter-spacing: 0;
+    line-height: var(--leading-numeral);
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: "tnum" 1, "lnum" 1;
+  }
+
+  /* Force tabular figures on any element that shows a changing number. */
+  .u-tabular {
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: "tnum" 1, "lnum" 1;
+  }
+
+  /* Small all-caps label above a value. */
+  .u-label {
+    font-family: var(--font-sans);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-label);
+    line-height: 1.2;
+  }
+
+  .u-eyebrow {
+    font-family: var(--font-sans);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-eyebrow);
+    line-height: 1.1;
+  }
+
+  /* The huge transparent surname / jersey number that sits behind a player. */
+  .u-ghost {
+    font-family: var(--font-display);
+    text-transform: uppercase;
+    line-height: var(--leading-slab);
+    letter-spacing: var(--tracking-condensed);
+    color: transparent;
+    -webkit-text-stroke: 0.014em color-mix(in oklab, var(--team-accent) 34%, transparent);
+    user-select: none;
+    pointer-events: none;
+  }
+
+  .u-ghost-fill {
+    font-family: var(--font-display);
+    text-transform: uppercase;
+    line-height: var(--leading-slab);
+    letter-spacing: var(--tracking-condensed);
+    color: color-mix(in oklab, var(--team-accent) 14%, transparent);
+    user-select: none;
+    pointer-events: none;
+  }
+
+  /* Soft bottom fade so a rectangular player photo dissolves into the field
+     instead of sitting inside a visible box. */
+  .u-cutout-fade {
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      #000 0%,
+      #000 62%,
+      rgb(0 0 0 / 0.86) 78%,
+      rgb(0 0 0 / 0.25) 93%,
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      #000 0%,
+      #000 62%,
+      rgb(0 0 0 / 0.86) 78%,
+      rgb(0 0 0 / 0.25) 93%,
+      transparent 100%
+    );
+  }
+
+  /* Edge-to-edge fade used at both ends of the sponsor ticker. */
+  .u-edge-fade-x {
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 4%,
+      #000 96%,
+      transparent 100%
+    );
+    mask-image: linear-gradient(to right, transparent 0, #000 4%, #000 96%, transparent 100%);
+  }
+
+  /* Screen-reader-only, used for the non-colour half of every status signal. */
+  .u-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
+/* ==========================================================================
+   Reduced motion.
+
+   Long, cinematic motion is neutralised; short state feedback (<= instant)
+   survives so the UI still confirms that something changed. Ambient loops
+   stop completely. Anything tagged data-motion="crossfade" keeps a slow
+   opacity change, which is the accessible substitute for the crawl.
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-scale: 0;
+
+    --dur-score-min: 1ms;
+    --dur-score: 1ms;
+    --dur-score-max: 1ms;
+    --dur-card-min: 1ms;
+    --dur-card: 1ms;
+    --dur-card-max: 1ms;
+    --dur-hero-min: 1ms;
+    --dur-hero: 1ms;
+    --dur-hero-max: 1ms;
+    --dur-goal-min: 1ms;
+    --dur-goal: 1ms;
+    --dur-goal-max: 1ms;
+    --dur-result-min: 1ms;
+    --dur-result: 1ms;
+    --dur-result-max: 1ms;
+  }
+
+  [data-ambient],
+  [data-motion="loop"] {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  [data-motion="crossfade"] {
+    animation: crossfade 9s ease-in-out infinite !important;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* Windows High Contrast / forced-colours: keep the semantic glyphs visible. */
+@media (forced-colors: active) {
+  [data-state-glyph] {
+    forced-color-adjust: auto;
+  }
+}

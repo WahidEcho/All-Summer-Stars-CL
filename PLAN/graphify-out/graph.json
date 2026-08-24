@@ -1,0 +1,318 @@
+{
+  "directed": false,
+  "multigraph": false,
+  "graph": {
+    "hyperedges": [
+      {
+        "id": "swanlake_football_stars_colorways",
+        "label": "SwanLake Football Stars Colorways",
+        "nodes": [
+          "swanlake_footbal_stars_21_logo_lockup",
+          "swanlake_footbal_stars_22_logo_composition",
+          "swanlake_footbal_stars_23_svg_artwork"
+        ],
+        "relation": "form",
+        "confidence": "INFERRED",
+        "confidence_score": 0.95,
+        "source_file": "swanlake footbal stars 21.svg"
+      },
+      {
+        "id": "swanlake_north_coast_colorways",
+        "label": "SwanLake North Coast Colorways",
+        "nodes": [
+          "sln_new_logo1_swanlake_northcoast_logo",
+          "sln_new_logo2_swanlake_northcoast_logo",
+          "sln_new_logo3_swanlake_northcoast_logo"
+        ],
+        "relation": "form",
+        "confidence": "INFERRED",
+        "confidence_score": 0.95,
+        "source_file": "SLN New Logo1.svg"
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "id": "sln_new_logo1_swanlake_northcoast_logo",
+      "label": "SwanLake North Coast Aqua Logo",
+      "author": null,
+      "captured_at": null,
+      "community": 0,
+      "community_name": "SwanLake Event Identity",
+      "contributor": null,
+      "file_type": "image",
+      "norm_label": "swanlake north coast aqua logo",
+      "source_file": "SLN New Logo1.svg",
+      "source_location": null,
+      "source_url": null
+    },
+    {
+      "id": "sln_new_logo2_swanlake_northcoast_logo",
+      "label": "SwanLake North Coast Black Logo",
+      "author": null,
+      "captured_at": null,
+      "community": 0,
+      "community_name": "SwanLake Event Identity",
+      "contributor": null,
+      "file_type": "image",
+      "norm_label": "swanlake north coast black logo",
+      "source_file": "SLN New Logo2.svg",
+      "source_location": null,
+      "source_url": null
+    },
+    {
+      "id": "sln_new_logo3_swanlake_northcoast_logo",
+      "label": "SwanLake North Coast Dark Logo",
+      "author": null,
+      "captured_at": null,
+      "community": 0,
+      "community_name": "SwanLake Event Identity",
+      "contributor": null,
+      "file_type": "image",
+      "norm_label": "swanlake north coast dark logo",
+      "source_file": "SLN New Logo3.svg",
+      "source_location": null,
+      "source_url": null
+    },
+    {
+      "id": "swanlake_footbal_stars_21_logo_lockup",
+      "label": "SwanLake Football Stars Aqua Composition",
+      "author": null,
+      "captured_at": null,
+      "community": 0,
+      "community_name": "SwanLake Event Identity",
+      "contributor": null,
+      "file_type": "image",
+      "norm_label": "swanlake football stars aqua composition",
+      "source_file": "swanlake footbal stars 21.svg",
+      "source_location": null,
+      "source_url": null
+    },
+    {
+      "id": "move_beyond_black_logo",
+      "label": "Move Beyond Black Logo",
+      "author": null,
+      "captured_at": null,
+      "community": 1,
+      "community_name": "Move Beyond Variants",
+      "contributor": null,
+      "file_type": "image",
+      "norm_label": "move beyond black logo",
+      "source_file": "Move Beyond Black.svg",
+      "source_location": null,
+      "source_url": null
+    },
+    {
+      "id": "move_beyond_light_blue_logo_logo",
+      "label": "Move Beyond Light Blue Logo",
+      "author": null,
+      "captured_at": null,
+      "community": 1,
+      "community_name": "Move Beyond Variants",
+      "contributor": null,
+      "file_type": "image",
+      "norm_label": "move beyond light blue logo",
+      "source_file": "Move Beyond light blue logo.svg",
+      "source_location": null,
+      "source_url": null
+    },
+    {
+      "id": "su_logo1_sports_united_bilingual_logo",
+      "label": "Sports United Light Bilingual Logo",
+      "author": null,
+      "captured_at": null,
+      "community": 2,
+      "community_name": "Sports United Variants",
+      "contributor": null,
+      "file_type": "image",
+      "norm_label": "sports united light bilingual logo",
+      "source_file": "SU logo1.svg",
+      "source_location": null,
+      "source_url": null
+    },
+    {
+      "id": "su_logo2_sports_united_logo",
+      "label": "Sports United Dark Bilingual Logo",
+      "author": null,
+      "captured_at": null,
+      "community": 2,
+      "community_name": "Sports United Variants",
+      "contributor": null,
+      "file_type": "image",
+      "norm_label": "sports united dark bilingual logo",
+      "source_file": "SU logo2.svg",
+      "source_location": null,
+      "source_url": null
+    },
+    {
+      "id": "swanlake_footbal_stars_22_logo_composition",
+      "label": "SwanLake Football Stars Light Composition",
+      "author": null,
+      "captured_at": null,
+      "community": 3,
+      "community_name": "Event Light and Dark",
+      "contributor": null,
+      "file_type": "image",
+      "norm_label": "swanlake football stars light composition",
+      "source_file": "swanlake footbal stars 22.svg",
+      "source_location": null,
+      "source_url": null
+    },
+    {
+      "id": "swanlake_footbal_stars_23_svg_artwork",
+      "label": "SwanLake Football Stars Dark Composition",
+      "author": null,
+      "captured_at": null,
+      "community": 3,
+      "community_name": "Event Light and Dark",
+      "contributor": null,
+      "file_type": "image",
+      "norm_label": "swanlake football stars dark composition",
+      "source_file": "swanlake footbal stars 23.svg",
+      "source_location": null,
+      "source_url": null
+    },
+    {
+      "id": "new_hap_logo_vertica_pdf_vertical_logo_lockup",
+      "label": "Hassan Allam Properties Vertical Logo Lockup",
+      "author": null,
+      "captured_at": null,
+      "community": 4,
+      "community_name": "Hassan Allam Properties",
+      "contributor": null,
+      "file_type": "image",
+      "norm_label": "hassan allam properties vertical logo lockup",
+      "source_file": "New HAP Logo - Vertica.pdf.svg",
+      "source_location": null,
+      "source_url": null
+    },
+    {
+      "id": "tellr_2_logo",
+      "label": "Tellr Logo Artwork",
+      "author": null,
+      "captured_at": null,
+      "community": 5,
+      "community_name": "Tellr Brand",
+      "contributor": null,
+      "file_type": "image",
+      "norm_label": "tellr logo artwork",
+      "source_file": "Tellr 2.svg",
+      "source_location": null,
+      "source_url": null
+    },
+    {
+      "id": "yalla_sahel_logo",
+      "label": "Yalla Sahel Logo",
+      "author": null,
+      "captured_at": null,
+      "community": 6,
+      "community_name": "Yalla Sahel Brand",
+      "contributor": null,
+      "file_type": "image",
+      "norm_label": "yalla sahel logo",
+      "source_file": "Yalla Sahel.svg",
+      "source_location": null,
+      "source_url": null
+    }
+  ],
+  "links": [
+    {
+      "source": "swanlake_footbal_stars_21_logo_lockup",
+      "target": "sln_new_logo1_swanlake_northcoast_logo",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "swanlake footbal stars 21.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "move_beyond_black_logo",
+      "target": "move_beyond_light_blue_logo_logo",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "Move Beyond Black.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "sln_new_logo1_swanlake_northcoast_logo",
+      "target": "sln_new_logo2_swanlake_northcoast_logo",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "SLN New Logo1.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "sln_new_logo2_swanlake_northcoast_logo",
+      "target": "sln_new_logo3_swanlake_northcoast_logo",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "SLN New Logo2.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "su_logo1_sports_united_bilingual_logo",
+      "target": "su_logo2_sports_united_logo",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "SU logo1.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "swanlake_footbal_stars_21_logo_lockup",
+      "target": "swanlake_footbal_stars_22_logo_composition",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "swanlake footbal stars 21.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "swanlake_footbal_stars_22_logo_composition",
+      "target": "swanlake_footbal_stars_23_svg_artwork",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "swanlake footbal stars 22.svg",
+      "source_location": null,
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "swanlake_football_stars_colorways",
+      "label": "SwanLake Football Stars Colorways",
+      "nodes": [
+        "swanlake_footbal_stars_21_logo_lockup",
+        "swanlake_footbal_stars_22_logo_composition",
+        "swanlake_footbal_stars_23_svg_artwork"
+      ],
+      "relation": "form",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "swanlake footbal stars 21.svg"
+    },
+    {
+      "id": "swanlake_north_coast_colorways",
+      "label": "SwanLake North Coast Colorways",
+      "nodes": [
+        "sln_new_logo1_swanlake_northcoast_logo",
+        "sln_new_logo2_swanlake_northcoast_logo",
+        "sln_new_logo3_swanlake_northcoast_logo"
+      ],
+      "relation": "form",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "SLN New Logo1.svg"
+    }
+  ]
+}
