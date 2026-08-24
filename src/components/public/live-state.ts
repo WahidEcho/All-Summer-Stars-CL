@@ -166,6 +166,13 @@ export function deriveLiveState(snapshot: EventSnapshot | null): LiveState {
           isLive: false,
         };
       case 'completed':
+        // A narrow window by nature: this holds the screen only between the
+        // match row finishing and an operator closing challenge 5, after which
+        // `everythingDone` short-circuits above and the state becomes
+        // `event_complete`. That is the right headline once the whole event is
+        // over — but the score it was showing is not superseded by it, so the
+        // closing screen carries the same official result forward rather than
+        // dropping it. See the `event_complete` branch and /live's summary card.
         return {
           ...base,
           status: 'match_official',
@@ -314,6 +321,12 @@ export function activeSide(snapshot: EventSnapshot | null): TeamCode | null {
  * under every score on the public site.
  */
 export function figuresCaption(state: LiveState, figures: RoundFigures): string {
+  // Checked ahead of both vocabularies below, because `event_complete` belongs
+  // to neither: it carries `isMatch: false`, so it would fall into the round
+  // wording and — having no round figures to describe — come out as
+  // `NOT STARTED` under the closing screen's final score.
+  if (state.status === 'event_complete') return 'OFFICIAL FINAL SCORE';
+
   if (state.isMatch) {
     switch (state.status) {
       case 'match_live':

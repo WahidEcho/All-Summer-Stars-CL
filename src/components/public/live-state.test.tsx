@@ -24,7 +24,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
-import { deriveLiveState } from '@/components/public/live-state';
+import { deriveLiveState, figuresCaption, roundFigures } from '@/components/public/live-state';
 import { buildSampleSnapshot } from '@/components/tv/sample-model';
 import type { EventSnapshot } from '@/lib/data/snapshot';
 import type { ChallengeRow, RoundRow } from '@/lib/types';
@@ -66,6 +66,32 @@ function finishedEvent(): EventSnapshot {
 /** A 1v1 challenge on the field, mid-round, with a full pairing. */
 function liveRound(): EventSnapshot {
   return buildSampleSnapshot('live_round');
+}
+
+/** Rewrite one challenge's status, keeping `currentChallenge` the same row. */
+function withChallengeStatus(
+  snapshot: EventSnapshot,
+  number: number,
+  status: ChallengeRow['status'],
+): EventSnapshot {
+  const challenges = snapshot.challenges.map((c) => (c.number === number ? { ...c, status } : c));
+  return {
+    ...snapshot,
+    challenges,
+    currentChallenge:
+      challenges.find((c) => c.id === snapshot.currentChallenge?.id) ?? snapshot.currentChallenge,
+  };
+}
+
+/**
+ * Full time, but the challenge row is not closed out yet.
+ *
+ * The only window `match_official` ever holds the screen — the seconds or
+ * minutes between an official confirming the match result and an operator
+ * marking challenge 5 completed.
+ */
+function fullTimeBeforeCloseout(): EventSnapshot {
+  return withChallengeStatus(finishedEvent(), 5, 'live');
 }
 
 /**
@@ -145,6 +171,33 @@ describe('deriveLiveState — a finished competition', () => {
     expect(state.holding).toBe(true);
     expect(state.hasFocus).toBe(false);
   });
+
+  it('never calls a finished competition NOT STARTED', () => {
+    // `event_complete` carries `isMatch: false` and has no round figures, so it
+    // fell into the round vocabulary and came out as the one caption a closing
+    // screen must never wear.
+    const state = deriveLiveState(finishedEvent());
+    const caption = figuresCaption(state, roundFigures(finishedEvent()));
+
+    expect(caption).not.toBe('NOT STARTED');
+    expect(caption).toBe('OFFICIAL FINAL SCORE');
+  });
+});
+
+describe('deriveLiveState — full time, before the challenge is closed out', () => {
+  it('reports the official final-match result', () => {
+    const state = deriveLiveState(fullTimeBeforeCloseout());
+    expect(state.status).toBe('match_official');
+    expect(state.label).toBe('FULL TIME');
+    expect(state.provisional).toBe(false);
+    expect(state.isMatch).toBe(true);
+  });
+
+  it('gives way to the competition-complete headline once it is closed out', () => {
+    // The handover this whole pair of states exists to make: the same score,
+    // re-headlined, never withdrawn.
+    expect(deriveLiveState(finishedEvent()).status).toBe('event_complete');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -167,6 +220,42 @@ describe('/live renders without a contest to draw', () => {
     // `NOT STARTED` is what the round caption says when there are no figures.
     // On the closing screen it read as the competition never having happened.
     expect(html).not.toContain('NOT STARTED');
+  });
+
+  it('carries the official final-match result onto the closing screen', async () => {
+    // The result used to leave the screen the instant challenge 5 was closed
+    // out, because `match_official` is the only state that showed it and
+    // `event_complete` supersedes it immediately.
+    const snapshot = finishedEvent();
+    expect(snapshot.match?.status).toBe('completed');
+
+    const html = await renderLive(snapshot);
+
+    expect(html).toContain('OFFICIAL FINAL SCORE');
+    // The scorers panel MatchView draws — the substance, not just a heading.
+    expect(html).toContain('Scorers');
+  });
+
+  it('does not present an unfinished match as the final score', async () => {
+    // Challenges closed out over a match still in play. The score on the table
+    // is a running one, and a closing screen must not call it official.
+    const snapshot = finishedEvent();
+    const inPlay: EventSnapshot = {
+      ...snapshot,
+      match: { ...snapshot.match!, status: 'live' },
+    };
+
+    const html = await renderLive(inPlay);
+
+    expect(html).toContain('COMPETITION COMPLETE');
+    expect(html).not.toContain('OFFICIAL FINAL SCORE');
+  });
+
+  it('shows full time while the challenge row is still open', async () => {
+    // The narrow window before closeout still renders its own headline.
+    const html = await renderLive(fullTimeBeforeCloseout());
+    expect(html).toContain('FULL TIME');
+    expect(html).toContain('Scorers');
   });
 
   it('renders a challenge that is live before its rounds are seeded', async () => {

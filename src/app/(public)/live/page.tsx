@@ -57,6 +57,18 @@ export default function LivePage() {
   }
 
   if (!state.hasFocus) {
+    // The final match result is the headline of the whole event, and it used to
+    // leave the screen the instant an operator marked challenge 5 completed:
+    // `match_official` ("FULL TIME") only ever held the page in the gap between
+    // the match row finishing and the challenge row being closed out, and
+    // `event_complete` replaced it with a bare summary card. There is no moment
+    // where a crowd wants the final score to disappear, so the closing screen
+    // carries it. `completed` is required rather than assumed — a set of
+    // challenges closed out over a match still in play must not have a running
+    // score presented as the final one.
+    const showFinalScore =
+      state.status === 'event_complete' && snapshot.match?.status === 'completed';
+
     return (
       <div className="flex flex-col gap-6 py-8">
         <div className="flex flex-col items-center gap-4 text-center">
@@ -83,6 +95,17 @@ export default function LivePage() {
             )}
           </div>
         </div>
+
+        {showFinalScore ? (
+          <section className="flex flex-col gap-3">
+            <p className="text-text-muted text-center text-xs tracking-[0.14em] uppercase">
+              {figuresCaption(state, figures)}
+            </p>
+            {/* No clock — it stopped a long time ago. */}
+            <MatchView timerLabel={null} />
+          </section>
+        ) : null}
+
         <ChallengeRail size="md" label="Competition progress" />
       </div>
     );
