@@ -151,6 +151,19 @@ function RoundView({
   const playerB = playerOf(snapshot, round?.player_b_id);
   const total = config ? attemptsPerPlayer(config) : 3;
 
+  // There is not always a round to draw. Once every challenge is finished the
+  // current challenge is the final match, which has no rounds at all, and the
+  // pairing is null. Rendering the cards regardless is what took this page down
+  // with a 500 the moment the competition ended — precisely when the crowd
+  // looks at it.
+  if (!round || !playerA || !playerB) {
+    return (
+      <EmptyNote>
+        No individual round is on right now. Check the results for the latest official scores.
+      </EmptyNote>
+    );
+  }
+
   const side = (code: TeamCode) => {
     const attempts = attemptsForSide(snapshot, code);
     return {
@@ -177,7 +190,7 @@ function RoundView({
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
         <LiveSideCard
-          player={rankedOf(snapshot, playerA?.id) ?? playerA!}
+          player={rankedOf(snapshot, playerA.id) ?? playerA}
           side="left"
           active={live === 'A'}
           roundScore={figures.scoreA}
@@ -185,7 +198,7 @@ function RoundView({
           attemptTotal={total}
           teamColor={snapshot.teamsByCode.A?.color}
           teamName={teamLabel(snapshot.teamsByCode.A, 'A')}
-          slotLabel={playerA ? anySlotLabel(snapshot, playerA.id) : null}
+          slotLabel={anySlotLabel(snapshot, playerA.id)}
         />
 
         <div className="flex items-center justify-center gap-3 sm:flex-col">
@@ -195,7 +208,7 @@ function RoundView({
         </div>
 
         <LiveSideCard
-          player={rankedOf(snapshot, playerB?.id) ?? playerB!}
+          player={rankedOf(snapshot, playerB.id) ?? playerB}
           side="right"
           active={live === 'B'}
           roundScore={figures.scoreB}
@@ -203,7 +216,7 @@ function RoundView({
           attemptTotal={total}
           teamColor={snapshot.teamsByCode.B?.color}
           teamName={teamLabel(snapshot.teamsByCode.B, 'B')}
-          slotLabel={playerB ? anySlotLabel(snapshot, playerB.id) : null}
+          slotLabel={anySlotLabel(snapshot, playerB.id)}
         />
       </div>
 
