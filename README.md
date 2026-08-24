@@ -139,6 +139,32 @@ at a preview URL.
 
 For a custom domain, add a CNAME in the Zoho DNS zone pointing at Vercel.
 
+## Rehearsals — never test against the live event
+
+There are two events in the database:
+
+| Slug | Purpose |
+|---|---|
+| `swanlake-football-stars-2026` | The real event. Only real scoring goes here. |
+| `swanlake-rehearsal` | Training and testing. Same teams, same roster, same photos. |
+
+A deployment serves whichever event `NEXT_PUBLIC_EVENT_SLUG` names, so point a preview
+deployment (or a local session) at the rehearsal and production is unreachable from it:
+
+```bash
+NEXT_PUBLIC_EVENT_SLUG=swanlake-rehearsal npm run dev
+```
+
+Rebuild the rehearsal event at any time — it re-clones structure and roster from the production
+event and never writes to it:
+
+```bash
+psql "$SUPABASE_DB_URL" -f supabase/migrations/0005_rehearsal_event.sql
+```
+
+This split exists because it was learned the hard way: a test run once wrote an entire fabricated
+tournament onto the public site while an operator was scoring a real one on a tablet.
+
 ## Before the event
 
 - Upload the ten player cut-outs and set each player's focal point.

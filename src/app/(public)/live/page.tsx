@@ -28,6 +28,10 @@ import { attemptsPerPlayer, formatClock } from '@/lib/scoring/engine';
 import { useTimer } from '@/lib/hooks';
 import type { TeamCode } from '@/lib/types';
 
+/** The quiet underlined link used on the no-contest summary card. */
+const SUMMARY_LINK =
+  'text-navy-soft hover:text-navy text-xs tracking-[0.16em] uppercase underline underline-offset-4';
+
 /**
  * The focused live view.
  *
@@ -58,12 +62,26 @@ export default function LivePage() {
         <div className="flex flex-col items-center gap-4 text-center">
           <StatusPill tone={state.tone} size="lg" label={state.label} />
           <p className="text-text-secondary max-w-md text-sm">{state.description}</p>
-          <Link
-            href="/"
-            className="text-navy-soft hover:text-navy text-xs tracking-[0.16em] uppercase underline underline-offset-4"
-          >
-            Back to the event
-          </Link>
+          {/* Before kick-off the only useful place to go is the holding page.
+              After the last whistle it is the standings this state has just
+              called official — a crowd that opened /live for the final score
+              should not have to hunt through the nav to find it. */}
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+            {state.status === 'event_complete' ? (
+              <>
+                <Link href="/standings" className={SUMMARY_LINK}>
+                  Final standings
+                </Link>
+                <Link href="/results" className={SUMMARY_LINK}>
+                  Every result
+                </Link>
+              </>
+            ) : (
+              <Link href="/" className={SUMMARY_LINK}>
+                Back to the event
+              </Link>
+            )}
+          </div>
         </div>
         <ChallengeRail size="md" label="Competition progress" />
       </div>
@@ -151,11 +169,15 @@ function RoundView({
   const playerB = playerOf(snapshot, round?.player_b_id);
   const total = config ? attemptsPerPlayer(config) : 3;
 
-  // There is not always a round to draw. Once every challenge is finished the
-  // current challenge is the final match, which has no rounds at all, and the
-  // pairing is null. Rendering the cards regardless is what took this page down
-  // with a 500 the moment the competition ended — precisely when the crowd
-  // looks at it.
+  // There is not always a round to draw. `hasFocus` says a contest is worth
+  // showing, not that its pairing exists: a challenge can be set live before
+  // its rounds are seeded, and a seeded round can still be waiting on its two
+  // players. Drawing the cards regardless is what took this page down with a
+  // 500 — `isRanked()` uses the `in` operator, which throws on a null player,
+  // during the server render as well as in the browser. It surfaced at the end
+  // of the show, where a finished event left the current challenge on the
+  // final match and so on no round at all; `deriveLiveState` now stands the
+  // focus down for that case, and this guard covers the rest.
   if (!round || !playerA || !playerB) {
     return (
       <EmptyNote>

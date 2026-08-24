@@ -43,7 +43,14 @@ export interface LiveState {
   corrected: boolean;
   /** True when the ball is actually in play. */
   isLive: boolean;
-  /** True when there is a current contest worth showing at all. */
+  /**
+   * True when there is a current contest worth showing at all.
+   *
+   * It does not promise a round to draw: a 1v1 challenge can be `live` before
+   * its rounds are seeded, and a seeded round can still be waiting on its
+   * pairing. A surface rendering a head-to-head must check `currentRound` and
+   * both players itself.
+   */
   hasFocus: boolean;
   /** True when the show has not started — the holding screen. */
   holding: boolean;
@@ -74,6 +81,18 @@ export function deriveLiveState(snapshot: EventSnapshot | null): LiveState {
     challenges.length > 0 && challenges.every((c) => c.status === 'completed');
 
   if (everythingDone) {
+    // No focus, deliberately. Once every challenge is finished there is no
+    // contest left to point a camera at, and the snapshot has nothing to draw
+    // one from: `pickCurrentChallenge` has fallen through to the last challenge
+    // — the final match — which owns no rounds, so `currentRound` is null and
+    // the pairing is null with it.
+    //
+    // Claiming focus here is what put a 500 on the public page at the exact
+    // moment the crowd went to look at the final score, and even with the
+    // round view guarded it left the closing screen headlined `FIVE A SIDE.
+    // FORTY MINUTES.` over a caption reading `NOT STARTED`. Standing the
+    // competition down onto the summary card is both the honest reading of
+    // this state and the one its own copy already describes.
     return {
       status: 'event_complete',
       label: 'COMPETITION COMPLETE',
@@ -82,7 +101,7 @@ export function deriveLiveState(snapshot: EventSnapshot | null): LiveState {
       provisional: false,
       corrected: false,
       isLive: false,
-      hasFocus: true,
+      hasFocus: false,
       holding: false,
       isMatch: false,
     };
