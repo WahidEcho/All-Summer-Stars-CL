@@ -86,6 +86,8 @@ export interface EventSnapshot {
   lineup: LineupSlotRow[];
   /** Lineup slots of every challenge, for slot labels and squad views. */
   allLineups: LineupSlotRow[];
+  /** Every 1v1 round of the event, all four skills challenges. */
+  allRounds: RoundRow[];
 
   match: MatchRow | null;
   goals: GoalRow[];
@@ -271,6 +273,7 @@ export async function getEventSnapshot(
 
     match,
     goals,
+    allRounds,
     matchTotals: match ? computeMatchScore(goals) : null,
     shootout,
     penaltyAttempts,

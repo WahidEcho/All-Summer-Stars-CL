@@ -143,6 +143,17 @@ export function deriveLiveState(snapshot: EventSnapshot | null): LiveState {
           provisional: true,
           isLive: false,
         };
+      case 'golden_goal':
+        return {
+          ...base,
+          status: 'match_live',
+          label: 'GOLDEN GOAL',
+          tone: 'live',
+          description:
+            'Level at full time. After the rest, the next goal wins the match.',
+          provisional: true,
+          isLive: true,
+        };
       case 'penalties':
         return {
           ...base,

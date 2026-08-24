@@ -95,10 +95,23 @@ function payloadStats(payload: Record<string, unknown>): PodiumCardStat[] | null
 export function CeremonyScene({ model, payload, ceremonyPhase }: SceneProps) {
   const { snapshot } = model;
 
-  const drawn = model.a.points === model.b.points;
-  const championSides: SideModel[] = drawn
-    ? [model.a, model.b]
-    : [model.a.points > model.b.points ? model.a : model.b];
+  // Under the two-competition day format the champion is the DAY winner —
+  // one point for the four skills challenges, one for the 5v5, shootout on
+  // 1–1 — not the side with more raw points. Points still decide the
+  // individual prizes; the two are deliberately independent.
+  const dayFormat = snapshot.scoring.day?.twoCompetitions === true;
+  const dayWinnerRaw = dayFormat ? model.dayScore.winner : null;
+  const dayWinner = dayWinnerRaw === 'A' || dayWinnerRaw === 'B' ? dayWinnerRaw : null;
+  const drawn = dayWinner
+    ? false
+    : dayFormat
+      ? model.dayScore.a === model.dayScore.b
+      : model.a.points === model.b.points;
+  const championSides: SideModel[] = dayWinner
+    ? [model.side(dayWinner)]
+    : drawn
+      ? [model.a, model.b]
+      : [model.a.points > model.b.points ? model.a : model.b];
 
   const usesPenaltyTiebreak = snapshot.scoring.ranking.tiebreakers.includes(
     'penalty_tiebreak_points',
@@ -472,6 +485,26 @@ function CompleteSlate({ model, qrUrl }: { model: SceneModel; qrUrl: string | nu
 // Phase B — 2026 CHAMPIONS
 // ---------------------------------------------------------------------------
 
+/**
+ * How the day was won, in one line — only under the two-competition format.
+ * `WINS THE DAY 2–0` for a sweep; a split day names the shootout that
+ * settled it.
+ */
+function daySub(model: SceneModel): string | undefined {
+  if (model.snapshot.scoring.day?.twoCompetitions !== true) return undefined;
+  const day = model.dayScore;
+  if (!day.winner) return undefined;
+  if (day.winner === 'draw') return undefined;
+  const w = model.side(day.winner);
+  const score = day.winner === 'A' ? `${day.a}–${day.b}` : `${day.b}–${day.a}`;
+  if (day.decidedBy === 'shootout') {
+    const p = model.snapshot.match;
+    const pens = p ? `${Math.max(p.penalty_score_a, p.penalty_score_b)}–${Math.min(p.penalty_score_a, p.penalty_score_b)}` : '';
+    return `${w.name.toUpperCase()} TAKE THE DAY 1–1 · ${pens} ON PENALTIES`;
+  }
+  return `${w.name.toUpperCase()} WIN THE DAY ${score}`;
+}
+
 function ChampionsFrame({
   model,
   sides,
@@ -498,7 +531,7 @@ function ChampionsFrame({
       <SceneHeadline
         eyebrow="SWANLAKE FOOTBALL STARS"
         size={shared ? 'lg' : 'xl'}
-        sub={drawn ? 'THE TEAMS FINISH LEVEL — THE TITLE IS SHARED' : undefined}
+        sub={drawn ? 'THE TEAMS FINISH LEVEL — THE TITLE IS SHARED' : daySub(model)}
         className="relative z-10 shrink-0"
       >
         2026 CHAMPIONS

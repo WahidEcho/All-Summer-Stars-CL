@@ -10,7 +10,14 @@
 
 import type { EventSnapshot } from '@/lib/data/snapshot';
 import { SITE_URL } from '@/lib/event';
-import { computeChallengeResult, type ChallengeResult } from '@/lib/scoring/engine';
+import {
+  challengesCompetitionTotals,
+  computeChallengeResult,
+  computeDayScore,
+  type ChallengeResult,
+  type DayScore,
+  type MatchTotals,
+} from '@/lib/scoring/engine';
 import type {
   AttemptRow,
   ChallengeConfig,
@@ -87,6 +94,15 @@ export interface SceneModel {
 
   goals: GoalRow[];
   confirmedGoals: GoalRow[];
+
+  /** Competition 1 — team totals across the four skills challenges alone. */
+  challengesTotals: MatchTotals;
+  /**
+   * The day as two competitions. `winner` is the champion team once decided;
+   * null while the show is still running. Absent-format events fall back to a
+   * day derived the same way, which is harmless: it only decides display copy.
+   */
+  dayScore: DayScore;
 }
 
 const DIGITS = ['00', '01', '02', '03', '04', '05', '06', '07', '08', '09'];
@@ -196,6 +212,27 @@ export function buildSceneModel(snapshot: EventSnapshot): SceneModel {
 
   const confirmedGoals = snapshot.goals.filter((g) => g.status === 'confirmed');
 
+  // ---- the day as two competitions -------------------------------------
+  const finalChallengeId = snapshot.challenges.find((c) => c.mechanic === 'final_match')?.id;
+  const skillsRounds = snapshot.allRounds.filter(
+    (r) =>
+      r.challenge_id !== finalChallengeId &&
+      (r.status === 'published' || r.status === 'completed'),
+  );
+  const challengesTotals = challengesCompetitionTotals(skillsRounds);
+  const matchDecided =
+    snapshot.match &&
+    (snapshot.match.status === 'completed' || snapshot.match.status === 'penalties') &&
+    snapshot.match.winner &&
+    snapshot.match.winner !== 'draw'
+      ? snapshot.match.winner
+      : null;
+  const dayScore = computeDayScore(
+    challengesTotals.winner,
+    matchDecided,
+    snapshot.shootout?.winner ?? null,
+  );
+
   return {
     snapshot,
 
@@ -242,6 +279,8 @@ export function buildSceneModel(snapshot: EventSnapshot): SceneModel {
 
     goals: snapshot.goals,
     confirmedGoals,
+    challengesTotals,
+    dayScore,
   };
 }
 

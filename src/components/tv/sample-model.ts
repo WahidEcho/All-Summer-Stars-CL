@@ -893,6 +893,7 @@ export function buildSampleSnapshot(scene: DisplayScene): EventSnapshot {
     challenges,
     currentChallenge,
     rounds: shape.rounds,
+    allRounds: shape.rounds,
     currentRound,
     attempts: shape.attempts,
     roundTotals: currentRound ? computeRoundTotals(shape.attempts) : null,

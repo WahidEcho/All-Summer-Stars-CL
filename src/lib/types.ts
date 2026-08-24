@@ -17,7 +17,10 @@ export type ChallengeStatus = 'draft' | 'ready' | 'locked' | 'live' | 'completed
 export type RoundStatus =
   | 'pending' | 'ready' | 'live' | 'awaiting_result' | 'result_ready' | 'published' | 'completed';
 export type MatchStatus =
-  | 'pending' | 'ready' | 'live' | 'halftime' | 'awaiting_result' | 'result_ready' | 'penalties' | 'completed';
+  | 'pending' | 'ready' | 'live' | 'halftime' | 'awaiting_result' | 'result_ready'
+  // Level at full time: a five-minute rest, then next goal wins the match.
+  | 'golden_goal'
+  | 'penalties' | 'completed';
 
 export type TimerMode = 'count_up' | 'count_down' | 'stopwatch';
 export type TimerState = 'ready' | 'running' | 'paused' | 'ended';
@@ -132,12 +135,27 @@ export interface RankingConfig {
   sharedRankOnTie: boolean;
 }
 
+/**
+ * The day as two competitions: the four skills challenges are one, the 5v5
+ * final the other, one day point each. Level at full time the match goes to a
+ * rest and golden goal; a 1–1 day goes to the shootout. The day winner is the
+ * champion team, independent of the individual points race.
+ */
+export interface DayFormatConfig {
+  twoCompetitions: boolean;
+  goldenGoal: boolean;
+  goldenGoalRestMinutes: number;
+  shootoutDecidesDay: boolean;
+}
+
 export interface ScoringConfig {
   challenges: Record<'1' | '2' | '3' | '4' | '5', ChallengeConfig>;
   match: MatchScoringConfig;
   bonuses: BonusConfig;
   penalties: PenaltyConfig;
   ranking: RankingConfig;
+  /** Absent on profiles saved before the two-competition format existed. */
+  day?: DayFormatConfig;
 }
 
 // --------------------------------------------------------------------

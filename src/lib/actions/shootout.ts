@@ -11,6 +11,7 @@
  */
 
 import {
+  challengesCompetitionTotals,
   computeMatchScore,
   computePenaltyScore,
   computeShootoutState,
@@ -180,7 +181,7 @@ export async function openShootout(
     payload: { matchId: value.matchId },
     async run(ctx) {
       const { db } = ctx;
-      const { match, profile } = await loadMatchContext(db, value.matchId);
+      const { match, profile, eventId } = await loadMatchContext(db, value.matchId);
 
       const goals = takeRows<GoalRow>(
         await db.from('goals').select('*').eq('match_id', match.id),
@@ -188,13 +189,39 @@ export async function openShootout(
       const totals = computeMatchScore(goals);
 
       assertState(
-        totals.winner === 'draw',
-        `The match is not level (${totals.scoreA}–${totals.scoreB}). A shootout cannot be opened.`,
-      );
-      assertState(
         profile.config.penalties.enabledFor !== 'disabled',
         'Penalties are disabled in the scoring profile.',
       );
+
+      if (profile.config.day?.twoCompetitions) {
+        // Two-competition day: the shootout settles a 1–1 DAY, never the match
+        // itself — a level match goes to golden goal and always finds a winner.
+        // The day is 1–1 exactly when the match winner and the challenges
+        // competition winner are different teams.
+        const rounds = takeRows<{ score_a: number; score_b: number; status: string }>(
+          await db
+            .from('rounds')
+            .select('score_a, score_b, status, challenges!inner(event_id, mechanic)')
+            .eq('challenges.event_id', eventId)
+            .neq('challenges.mechanic', 'final_match'),
+        );
+        const skills = challengesCompetitionTotals(
+          rounds.filter((r) => r.status === 'published' || r.status === 'completed'),
+        );
+        assertState(
+          totals.winner !== 'draw',
+          'The match is level — golden goal decides the match before any shootout.',
+        );
+        assertState(
+          skills.winner !== 'draw' && skills.winner !== totals.winner,
+          `The day is not level (challenges: ${skills.scoreA}–${skills.scoreB}, match winner ${totals.winner}). A shootout only settles a 1–1 day.`,
+        );
+      } else {
+        assertState(
+          totals.winner === 'draw',
+          `The match is not level (${totals.scoreA}–${totals.scoreB}). A shootout cannot be opened.`,
+        );
+      }
 
       const existing = take<PenaltyShootoutRow | null>(
         await db

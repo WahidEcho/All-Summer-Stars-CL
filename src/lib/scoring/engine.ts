@@ -387,6 +387,84 @@ export function teamPointsFrom(ranked: RankedPlayer[]): Record<TeamCode, number>
 }
 
 // ---------------------------------------------------------------------------
+// The day — two competitions
+// ---------------------------------------------------------------------------
+
+/**
+ * The event is decided as TWO competitions, one day point each:
+ *
+ *   Competition 1 — the four skills challenges, by total team points across
+ *                   challenges 1–4 (goal points from the match never count).
+ *   Competition 2 — the 5v5 final match. A match level at full time goes to a
+ *                   rest and then golden goal, so it always produces a winner.
+ *
+ * 2–0 wins the day outright. 1–1 sends the day to a penalty shootout, whose
+ * winner takes the day. A drawn challenges competition awards its point to
+ * nobody, leaving the match winner to take the day 1–0.
+ *
+ * The day decides the CHAMPION TEAM. Individual points still rank the players
+ * for the Top-5 prizes; the two are deliberately independent.
+ */
+export interface DayScore {
+  /** Winner of the challenges competition, from totals over challenges 1–4. */
+  challenges: ResultOutcome;
+  /** Winner of the final match, or null while it is unfinished. */
+  match: ResultOutcome | null;
+  a: number;
+  b: number;
+  /** True once both competitions have concluded. */
+  bothPlayed: boolean;
+  /** True when the day stands level and only a shootout can settle it. */
+  needsShootout: boolean;
+  /** The champion team, once the day is decided. */
+  winner: ResultOutcome | null;
+  /** How the day was won, for display copy. */
+  decidedBy: 'sweep' | 'split' | 'shootout' | null;
+}
+
+export function computeDayScore(
+  challengesWinner: ResultOutcome,
+  matchWinner: ResultOutcome | null,
+  shootoutWinner: ResultOutcome | null,
+): DayScore {
+  const a = (challengesWinner === 'A' ? 1 : 0) + (matchWinner === 'A' ? 1 : 0);
+  const b = (challengesWinner === 'B' ? 1 : 0) + (matchWinner === 'B' ? 1 : 0);
+  const bothPlayed = matchWinner !== null && matchWinner !== 'draw';
+
+  if (!bothPlayed) {
+    return { challenges: challengesWinner, match: matchWinner, a, b, bothPlayed,
+             needsShootout: false, winner: null, decidedBy: null };
+  }
+
+  if (a !== b) {
+    return { challenges: challengesWinner, match: matchWinner, a, b, bothPlayed,
+             needsShootout: false, winner: a > b ? 'A' : 'B',
+             decidedBy: a + b === 2 ? (a === 2 || b === 2 ? 'sweep' : 'split') : 'split' };
+  }
+
+  // Level — either 1–1, or 0–0 with a drawn challenges competition impossible
+  // here (a draw gives the match winner an uncontested point). Shootout time.
+  if (shootoutWinner && shootoutWinner !== 'draw') {
+    return { challenges: challengesWinner, match: matchWinner, a, b, bothPlayed,
+             needsShootout: false, winner: shootoutWinner, decidedBy: 'shootout' };
+  }
+  return { challenges: challengesWinner, match: matchWinner, a, b, bothPlayed,
+           needsShootout: true, winner: null, decidedBy: null };
+}
+
+/**
+ * Team totals across the four skills challenges alone — Competition 1's
+ * scoreboard. Built from round scores so match goal points can never leak in.
+ */
+export function challengesCompetitionTotals(
+  rounds: Array<{ score_a: number; score_b: number }>,
+): MatchTotals {
+  const scoreA = rounds.reduce((t, r) => t + Number(r.score_a), 0);
+  const scoreB = rounds.reduce((t, r) => t + Number(r.score_b), 0);
+  return { scoreA, scoreB, winner: outcomeOf(scoreA, scoreB) };
+}
+
+// ---------------------------------------------------------------------------
 // Penalty shootout state
 // ---------------------------------------------------------------------------
 

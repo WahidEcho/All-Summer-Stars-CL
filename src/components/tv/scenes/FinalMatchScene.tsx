@@ -221,10 +221,16 @@ export function FinalMatchScene({ model, payload }: SceneProps) {
     match?.status === 'penalties' ||
     (shootout != null && shootout.status !== 'completed');
   const atHalftime = forced === 'halftime' || match?.status === 'halftime';
+  // Level at full time: five minutes' rest, then the next goal wins. The
+  // banner covers both — before the third segment's clock starts it reads as
+  // the rest, once it runs it reads as sudden death.
+  const inGoldenGoal =
+    forced === 'golden_goal' || (match?.status === 'golden_goal' && !inPenalties);
   const fullTimeReached = fullTimeMs > 0 && continuousMs >= fullTimeMs;
   const verifying =
     !atHalftime &&
     !inPenalties &&
+    !inGoldenGoal &&
     (forced === 'fulltime' ||
       match?.status === 'awaiting_result' ||
       match?.status === 'result_ready' ||
@@ -273,16 +279,22 @@ export function FinalMatchScene({ model, payload }: SceneProps) {
   }, [latestArrival, goalMode, matchConfig, model]);
 
   // --- header furniture ---------------------------------------------------
-  const halfLabel = atHalftime
-    ? 'HALF TIME'
-    : fullTimeReached
-      ? 'FULL TIME'
-      : segment > 1
-        ? 'SECOND HALF'
-        : 'FIRST HALF';
+  const halfLabel = inGoldenGoal
+    ? 'GOLDEN GOAL'
+    : atHalftime
+      ? 'HALF TIME'
+      : fullTimeReached
+        ? 'FULL TIME'
+        : segment > 1
+          ? 'SECOND HALF'
+          : 'FIRST HALF';
 
   const status: { label: string; tone: StatusPillTone; pulse: boolean } = inPenalties
     ? { label: 'PENALTIES', tone: 'accent', pulse: true }
+    : inGoldenGoal
+      ? reading.running
+        ? { label: 'GOLDEN GOAL — NEXT GOAL WINS', tone: 'live', pulse: true }
+        : { label: 'GOLDEN GOAL — REST', tone: 'pending', pulse: false }
     : atHalftime
       ? { label: 'HALF TIME', tone: 'draw', pulse: false }
       : verifying
@@ -290,6 +302,25 @@ export function FinalMatchScene({ model, payload }: SceneProps) {
         : reading.running
           ? { label: 'LIVE', tone: 'live', pulse: true }
           : { label: reading.state === 'paused' ? 'CLOCK STOPPED' : 'READY', tone: 'pending', pulse: false };
+
+  // The day at a glance: competition 1 is already decided by the time the
+  // final kicks off, so the wall keeps the stake visible — what this match is
+  // worth in day points, and whether a shootout looms.
+  const dayFormat = snapshot.scoring.day?.twoCompetitions === true;
+  const dayDetail = dayFormat
+    ? (() => {
+        const skills = model.challengesTotals;
+        if (skills.winner === 'draw') return `THE DAY — CHALLENGES LEVEL · THIS MATCH DECIDES IT`;
+        const holder = model.side(skills.winner);
+        const day = model.dayScore;
+        if (day.winner && day.winner !== 'draw') {
+          const champ = model.side(day.winner);
+          return `THE DAY — ${champ.shortName} WIN ${day.winner === 'A' ? `${day.a}–${day.b}` : `${day.b}–${day.a}`}`;
+        }
+        if (day.needsShootout) return `THE DAY — 1–1 · PENALTIES DECIDE IT`;
+        return `THE DAY — ${holder.shortName} LEAD 1–0 · WIN HERE AND ${holder.shortName} TAKE IT, LOSE AND IT IS PENALTIES`;
+      })()
+    : null;
 
   const overlay: ReactNode =
     goalStep && latestArrival ? (
@@ -321,7 +352,7 @@ export function FinalMatchScene({ model, payload }: SceneProps) {
     <SceneFrame
       eyebrow={model.challengeLabel}
       title="FINAL MATCH"
-      detail={`${model.a.shortName} V ${model.b.shortName}`}
+      detail={dayDetail ?? `${model.a.shortName} V ${model.b.shortName}`}
       status={<StatusPill label={status.label} tone={status.tone} size="md" pulse={status.pulse} />}
       qrUrl={model.qrUrl}
       sponsors={snapshot.sponsors}

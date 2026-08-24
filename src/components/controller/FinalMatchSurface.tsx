@@ -282,6 +282,29 @@ export function FinalMatchSurface() {
             />
           ) : null}
 
+          {/* Level at full time: rest, then golden goal — the next goal wins
+              the match. The button starts the open-ended sudden-death clock
+              (segment 3); goals record exactly as in regulation, and END MATCH
+              afterwards submits the winner. */}
+          {status === 'golden_goal' && !reading.running ? (
+            <ControlButton
+              label="START GOLDEN GOAL — NEXT GOAL WINS"
+              glyph="★"
+              size="lg"
+              tone="primary"
+              disabled={!canMutate}
+              disabledReason="This device does not hold the controls."
+              busy={runner.busyId === `match:start-half:${match.id}:${halves + 1}`}
+              onPress={() => void commands.startHalf(halves + 1)}
+              className="lg:col-span-2"
+            />
+          ) : null}
+          {status === 'golden_goal' && reading.running ? (
+            <div className="flex min-h-28 items-center justify-center rounded-lg border-2 border-live bg-live-soft px-4 lg:col-span-2">
+              <p className="u-display text-h3 text-live">GOLDEN GOAL · NEXT GOAL WINS</p>
+            </div>
+          ) : null}
+
           {status !== 'completed' && status !== 'pending' && status !== 'ready' ? (
             <ConfirmControlButton
               label="END MATCH"

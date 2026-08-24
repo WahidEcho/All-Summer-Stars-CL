@@ -347,22 +347,31 @@ export async function startHalf(input: HalfCommandInput): Promise<ActionResult<H
       );
 
       const config = finalMatchConfig(profile.config.challenges['5']);
+      // One extra segment exists beyond the regulation halves: golden goal.
+      // It opens only from the golden_goal state a level full-time result
+      // produces, and it has no duration — the next goal ends it, not a clock.
+      const goldenGoalSegment = config.halves + 1;
+      const isGoldenGoal = value.half === goldenGoalSegment;
       assertState(
-        value.half <= config.halves,
-        `This match has ${config.halves} halves.`,
+        value.half <= config.halves ||
+          (isGoldenGoal && match.status === 'golden_goal'),
+        isGoldenGoal
+          ? 'Golden goal opens only when the match is level at full time.'
+          : `This match has ${config.halves} halves.`,
         'invalid_input',
       );
 
       // The match clock counts up across the whole game — the second half
-      // starts where the first ended, exactly as the rules describe.
+      // starts where the first ended, exactly as the rules describe. Golden
+      // goal keeps counting from full time, open-ended.
       const timer = await ensureTimerRow(db, {
         eventId,
         scope: 'match',
         matchId: match.id,
         segment: value.half,
         mode: 'count_up',
-        durationMs: config.halfDurationMs * value.half,
-        label: `Half ${value.half}`,
+        durationMs: isGoldenGoal ? null : config.halfDurationMs * value.half,
+        label: isGoldenGoal ? 'Golden goal' : `Half ${value.half}`,
       });
 
       // 00:00→20:00, halftime, then 20:00→40:00. The second half is a separate
@@ -377,8 +386,10 @@ export async function startHalf(input: HalfCommandInput): Promise<ActionResult<H
         await db.from('challenges').update({ status: 'live' }).eq('id', challenge.id);
       }
 
+      // Golden goal keeps its own status while its clock runs — the surfaces
+      // read `golden_goal` to say NEXT GOAL WINS rather than plain LIVE.
       const updated = await writeMatch(db, match.id, {
-        status: 'live',
+        status: isGoldenGoal ? 'golden_goal' : 'live',
         current_half: value.half,
       });
 
@@ -472,6 +483,27 @@ export async function endMatch(
 
       const synced = await syncMatchScore(db, match.id);
       const totals = synced.totals;
+
+      // Level at full time: the day format sends the match to a rest and then
+      // golden goal — the match itself always finds a winner. The shootout is
+      // reserved for a 1–1 DAY, never for the match. With golden goal switched
+      // off in the profile, the old drawn-match shootout path still applies.
+      const goldenGoal = profile.config.day?.goldenGoal ?? false;
+      if (totals.winner === 'draw' && goldenGoal) {
+        const updated = await writeMatch(db, match.id, {
+          status: 'golden_goal',
+          current_half: 3,
+          revision: Number(match.revision) + 1,
+        });
+        ctx.audit({
+          action: 'match.golden_goal',
+          entityType: 'match',
+          entityId: match.id,
+          after: { score_a: totals.scoreA, score_b: totals.scoreB },
+          reason: 'level at full time — rest, then next goal wins',
+        });
+        return { match: updated, totals, entries: [], requiresShootout: false };
+      }
 
       const penaltiesEnabled = profile.config.penalties.enabledFor !== 'disabled';
       const requiresShootout = totals.winner === 'draw' && penaltiesEnabled;
