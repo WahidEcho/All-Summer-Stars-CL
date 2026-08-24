@@ -60,7 +60,12 @@ export function SponsorLogo({
         src={asset.src}
         alt=""
         draggable={false}
-        loading="lazy"
+        // Eager, not lazy. Sponsor marks live on a permanently visible strip
+        // and most of the crawl sits outside the viewport at any instant, so
+        // lazy loading leaves them unpainted until they scroll in — and on an
+        // idle or backgrounded display they may never load at all. Sponsor
+        // exposure is contractual; it cannot depend on scroll position.
+        loading="eager"
         decoding="async"
         style={brandCropStyle(asset)}
       />
@@ -71,7 +76,7 @@ export function SponsorLogo({
       src={sponsor.logo_url}
       alt=""
       draggable={false}
-      loading="lazy"
+      loading="eager"
       decoding="async"
       className="w-auto object-contain"
       style={{ height: Math.round(height * 0.78) }}
