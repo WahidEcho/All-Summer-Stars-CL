@@ -60,6 +60,8 @@ export interface ControllerCommands {
   reverse: (target: UndoTarget) => Promise<void>;
 
   startRound: () => Promise<void>;
+  /** Start a specific round — the per-round rail's explicit control. */
+  startRoundById: (roundId: string, label: string) => Promise<void>;
   submitRoundResult: () => Promise<void>;
   publishRound: () => Promise<void>;
   reopenRound: (reason: string) => Promise<void>;
@@ -170,6 +172,15 @@ export function useControllerCommands(): ControllerCommands {
           label: 'Start the round',
           note: 'ROUND STARTED',
           run: (base) => startRound({ ...base, roundId }),
+        });
+      },
+
+      async startRoundById(targetRoundId, label) {
+        await runner.run({
+          id: `round:start:${targetRoundId}`,
+          label: `Start ${label}`,
+          note: `${label.toUpperCase()} STARTED`,
+          run: (base) => startRound({ ...base, roundId: targetRoundId }),
         });
       },
 

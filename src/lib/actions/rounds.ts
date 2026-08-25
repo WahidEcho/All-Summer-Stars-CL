@@ -114,6 +114,33 @@ export async function startRound(input: RoundCommandInput): Promise<ActionResult
       );
 
       const challenge = await loadChallenge(db, round.challenge_id);
+
+      // One round at a time — a hard rule, learned the hard way. During a dress
+      // run, rounds started and abandoned across two devices left five rounds
+      // simultaneously "in flight", and the wall (which follows whatever is
+      // live) could never settle on a result: every publish snapped it straight
+      // to a stale live round, which read as the show starting the next round
+      // by itself. The show is strictly sequential; the server now says so.
+      const inFlight = takeRows<{ id: string; number: number; challenge_id: string }>(
+        await db
+          .from('rounds')
+          .select('id, number, challenge_id, challenges!inner(event_id, number)')
+          .eq('challenges.event_id', challenge.event_id)
+          .in('status', ['live', 'awaiting_result', 'result_ready'])
+          .neq('id', round.id),
+      );
+      if (inFlight.length > 0) {
+        const blocking = inFlight[0] as unknown as {
+          number: number;
+          challenges: { number: number };
+        };
+        assertState(
+          false,
+          `Round ${blocking.number} of challenge ${blocking.challenges.number} is still open — submit and publish it before starting another round.`,
+          'illegal_state',
+        );
+      }
+
       if (challenge.status === 'ready' || challenge.status === 'locked') {
         await db.from('challenges').update({ status: 'live' }).eq('id', challenge.id);
       }

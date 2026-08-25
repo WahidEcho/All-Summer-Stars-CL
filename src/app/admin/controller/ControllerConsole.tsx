@@ -40,6 +40,7 @@ import {
   MannequinTargetSurface,
   Panel,
   PenaltyShootoutSurface,
+  RoundStartRail,
   configForChallenge,
   sideStatesFor,
   useCommandRunner,
@@ -79,13 +80,33 @@ function headerTimer(snapshot: EventSnapshot): { timer: TimerRow | null; tenths:
 function Surface({ snapshot }: { snapshot: EventSnapshot }) {
   switch (snapshot.currentChallenge?.mechanic) {
     case 'mannequin_target':
-      return <MannequinTargetSurface />;
+      return (
+        <div className="flex flex-col gap-4">
+          <RoundStartRail />
+          <MannequinTargetSurface />
+        </div>
+      );
     case 'dribble_finish':
-      return <DribbleFinishSurface />;
+      return (
+        <div className="flex flex-col gap-4">
+          <RoundStartRail />
+          <DribbleFinishSurface />
+        </div>
+      );
     case 'long_range':
-      return <LongRangeSurface />;
+      return (
+        <div className="flex flex-col gap-4">
+          <RoundStartRail />
+          <LongRangeSurface />
+        </div>
+      );
     case 'center_circle':
-      return <CentreCircleSurface />;
+      return (
+        <div className="flex flex-col gap-4">
+          <RoundStartRail />
+          <CentreCircleSurface />
+        </div>
+      );
     case 'final_match':
       return (
         <div className="flex flex-col gap-4">

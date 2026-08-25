@@ -11,7 +11,9 @@
  *   controller starts any other round
  *       → HEAD-TO-HEAD for 10 seconds → LIVE ROUND
  *   round runs until the controller submits and publishes
- *       → ROUND RESULT, held until the next round starts
+ *       → ROUND RESULT, held until the next round starts — and for at least
+ *         twelve seconds even if the next round starts immediately, so a
+ *         result can never be flashed past the room
  *   fifth result published and the challenge ended
  *       → CHALLENGE RESULT, held until the next challenge's first round starts
  *   the 5v5 under way (any of its states, golden goal and penalties included)
@@ -20,8 +22,8 @@
  *       → LEADERBOARD, held — the ceremony stays in the operator's hands
  *
  * Steady state is a pure function of the snapshot, so the server can paint the
- * right frame on load. The timed intros exist only as reactions to a round
- * *starting while the wall is watching* — a wall plugged in mid-round joins the
+ * right frame on load. The timed steps exist only as reactions to transitions
+ * seen *while the wall is watching* — a wall plugged in mid-round joins the
  * live round directly instead of replaying an intro the room has already seen.
  */
 
@@ -37,6 +39,8 @@ export interface DirectedScene {
 
 const LINEUPS_HOLD_MS = 20_000;
 const HEAD_TO_HEAD_HOLD_MS = 10_000;
+/** The floor under every published result, whatever the controller does next. */
+const RESULT_HOLD_MS = 12_000;
 
 /** States that mean a 1v1 round currently owns the show. */
 const ROUND_IN_FLIGHT: ReadonlyArray<RoundRow['status']> = [
@@ -45,13 +49,31 @@ const ROUND_IN_FLIGHT: ReadonlyArray<RoundRow['status']> = [
   'result_ready',
 ];
 
-/** The round the controller is running right now, if any. */
+/**
+ * The round the controller is running right now.
+ *
+ * When more than one round is somehow in flight — a dress run once left five,
+ * started and abandoned across two devices — the show is wherever the operator
+ * went LAST, so the highest (challenge, round) wins. The server now refuses to
+ * open a second round, so this is a belt for data predating that brace.
+ */
 function liveRoundOf(snapshot: EventSnapshot): RoundRow | null {
-  return snapshot.allRounds.find((r) => ROUND_IN_FLIGHT.includes(r.status)) ?? null;
+  const numberOf = new Map(snapshot.challenges.map((c) => [c.id, c.number]));
+  let best: RoundRow | null = null;
+  let bestKey = -1;
+  for (const round of snapshot.allRounds) {
+    if (!ROUND_IN_FLIGHT.includes(round.status)) continue;
+    const key = (numberOf.get(round.challenge_id) ?? 0) * 100 + round.number;
+    if (key > bestKey) {
+      best = round;
+      bestKey = key;
+    }
+  }
+  return best;
 }
 
 /**
- * Where the show stands, ignoring the timed intros. Pure, so it also decides
+ * Where the show stands, ignoring the timed steps. Pure, so it also decides
  * the server-rendered first frame.
  */
 export function steadyAutoScene(snapshot: EventSnapshot): DirectedScene {
@@ -60,7 +82,12 @@ export function steadyAutoScene(snapshot: EventSnapshot): DirectedScene {
 
   // The 5v5 owns the wall from its first whistle to its last kick — golden
   // goal and the day shootout included.
-  if (match && ['live', 'halftime', 'awaiting_result', 'result_ready', 'golden_goal', 'penalties'].includes(match.status)) {
+  if (
+    match &&
+    ['live', 'halftime', 'awaiting_result', 'result_ready', 'golden_goal', 'penalties'].includes(
+      match.status,
+    )
+  ) {
     return { scene: 'final_match', payload: {} };
   }
   if (match && match.status === 'completed') {
@@ -118,86 +145,116 @@ export function steadyAutoScene(snapshot: EventSnapshot): DirectedScene {
   return { scene: 'holding', payload: {} };
 }
 
+interface Step {
+  directed: DirectedScene;
+  holdMs: number;
+}
+
 /**
- * The full director: steady state plus the timed intro that plays when a round
- * starts while the wall is live. Returns null while inactive so the caller
- * falls back to the operator's own scene untouched.
+ * The full director: steady state plus the timed steps that play when a
+ * transition happens under our watch. Returns null while inactive so the
+ * caller falls back to the operator's own scene untouched.
  */
 export function useAutoDirector(
   snapshot: EventSnapshot | null,
   enabled: boolean,
 ): DirectedScene | null {
-  const [intro, setIntro] = useState<DirectedScene | null>(null);
-  const seenLiveRound = useRef<string | null>(null);
+  const [playing, setPlaying] = useState<DirectedScene | null>(null);
+  const queue = useRef<Step[]>([]);
+  const watched = useRef<RoundRow | null>(null);
   const primed = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const liveId = snapshot ? (liveRoundOf(snapshot)?.id ?? null) : null;
+  const live = snapshot ? liveRoundOf(snapshot) : null;
+  const liveId = live?.id ?? null;
+
+  // The publish detector needs the watched round's CURRENT status, not the
+  // stale row captured when it went live.
+  const watchedNow =
+    snapshot && watched.current
+      ? (snapshot.allRounds.find((r) => r.id === watched.current?.id) ?? null)
+      : null;
+  const watchedPublished =
+    watchedNow != null &&
+    (watchedNow.status === 'published' || watchedNow.status === 'completed');
 
   useEffect(() => {
     if (!enabled || !snapshot) return;
 
-    const live = liveRoundOf(snapshot);
-
     // First look at a wall that is already mid-show: adopt the state without
-    // replaying an intro the room has already watched.
+    // replaying anything the room has already watched.
     if (!primed.current) {
       primed.current = true;
-      seenLiveRound.current = live?.id ?? null;
+      watched.current = live;
       return;
     }
 
-    if (!live) {
-      seenLiveRound.current = null;
-      return;
-    }
-    if (live.id === seenLiveRound.current) return;
-    seenLiveRound.current = live.id;
+    const pending: Step[] = [];
 
-    // A round just started under our watch — run its entrance.
-    const steps: Array<{ directed: DirectedScene; holdMs: number }> = [];
-    if (live.number === 1) {
-      steps.push({
-        directed: { scene: 'lineups', payload: { challengeId: live.challenge_id } },
-        holdMs: LINEUPS_HOLD_MS,
+    // The round we were showing has just been published: its result gets the
+    // floor before anything else — including a next round that started the
+    // same second.
+    if (watchedPublished && watchedNow) {
+      pending.push({
+        directed: {
+          scene: 'round_result',
+          payload: { challengeId: watchedNow.challenge_id, roundId: watchedNow.id },
+        },
+        holdMs: RESULT_HOLD_MS,
+      });
+      watched.current = null;
+    }
+
+    // A round started under our watch — its entrance queues behind any hold.
+    if (live && live.id !== watched.current?.id) {
+      watched.current = live;
+      if (live.number === 1) {
+        pending.push({
+          directed: { scene: 'lineups', payload: { challengeId: live.challenge_id } },
+          holdMs: LINEUPS_HOLD_MS,
+        });
+      }
+      pending.push({
+        directed: {
+          scene: 'head_to_head',
+          payload: { challengeId: live.challenge_id, roundId: live.id },
+        },
+        holdMs: HEAD_TO_HEAD_HOLD_MS,
       });
     }
-    steps.push({
-      directed: {
-        scene: 'head_to_head',
-        payload: { challengeId: live.challenge_id, roundId: live.id },
-      },
-      holdMs: HEAD_TO_HEAD_HOLD_MS,
-    });
 
-    if (timer.current) clearTimeout(timer.current);
-    let index = 0;
+    if (pending.length === 0) return;
+
+    const alreadyPlaying = timer.current !== null;
+    queue.current.push(...pending);
+    if (alreadyPlaying) return;
+
     const advance = () => {
-      const step = steps[index];
+      const step = queue.current.shift();
       if (!step) {
-        setIntro(null);
         timer.current = null;
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setPlaying(null);
         return;
       }
-      setIntro(step.directed);
-      index += 1;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPlaying(step.directed);
       timer.current = setTimeout(advance, step.holdMs);
     };
     advance();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the live round alone
-  }, [enabled, liveId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the transitions alone
+  }, [enabled, liveId, watchedPublished]);
 
-  // The intro must never outlive the round it introduced — a round that is
-  // published mid-intro (or the director being switched off) cuts straight to
-  // the steady state.
+  // Switching the director off abandons the queue outright.
   useEffect(() => {
-    if (enabled && liveId) return;
+    if (enabled) return;
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
-    // Cutting a finished intro: one-shot, guarded by the early return above.
+    queue.current = [];
+    primed.current = false;
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setIntro(null);
-  }, [enabled, liveId]);
+    setPlaying(null);
+  }, [enabled]);
 
   useEffect(
     () => () => {
@@ -207,5 +264,5 @@ export function useAutoDirector(
   );
 
   if (!enabled || !snapshot) return null;
-  return intro ?? steadyAutoScene(snapshot);
+  return playing ?? steadyAutoScene(snapshot);
 }

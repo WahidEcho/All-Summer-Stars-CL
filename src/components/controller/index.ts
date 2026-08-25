@@ -107,3 +107,4 @@ export {
   type TurnRule,
   type UndoTarget,
 } from '@/components/controller/controller-model';
+export { RoundStartRail } from '@/components/controller/RoundStartRail';
