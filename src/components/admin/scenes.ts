@@ -1,7 +1,7 @@
 import type { DisplayScene } from '@/lib/types';
 
 /**
- * The nine broadcast scenes, and what each one needs to know.
+ * Every broadcast scene, and what each one needs to know.
  *
  * The display actions accept an opaque `payload`, which is right for the wire
  * but useless to an operator. This table is the operator-facing half: it says
@@ -150,6 +150,24 @@ export const SCENES: SceneDescriptor[] = [
       'The closing sequence. Drive it from the Ceremony screen rather than cutting phases here.',
     fields: [
       { key: 'phase', label: 'Ceremony phase', kind: 'ceremonyPhase', required: true },
+    ],
+  },
+  {
+    scene: 'player_entrance',
+    cue: '10',
+    title: 'Player entrance',
+    purpose:
+      'The walk-out card for one player, held until the next one is sent. Drive it from ' +
+      'the Player entrance screen rather than picking players one at a time here.',
+    fields: [
+      {
+        key: 'playerId',
+        label: 'Player',
+        kind: 'player',
+        // Deliberately optional: no player is the welcome frame the walk-out
+        // opens on, which is a valid thing to put on the wall.
+        hint: 'Leave empty for the welcome frame.',
+      },
     ],
   },
 ];

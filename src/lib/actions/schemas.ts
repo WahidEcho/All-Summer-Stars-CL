@@ -110,12 +110,13 @@ export const setLineupSlotSchema = commandBase.extend({
 
 export const displaySceneEnum = z.enum([
   // Keep in step with `DisplayScene` in src/lib/types.ts and the Postgres
-  // `display_scene` enum. AUTO was added to both of those and missed here,
+  // `display_scene` enum. A value missing here is rejected before it ever
+  // reaches the database. AUTO was added to both of those and missed here,
   // which made every route to it — the console tile, a cut, and the one-press
-  // BACK TO AUTO — fail input validation before reaching the database, with
-  // the type checker none the wiser because the input is typed `DisplayScene`.
-  // The wall could only ever be put on AUTO by writing the row by hand.
-  // `display-scene-parity.test.ts` now fails if this list drifts again.
+  // BACK TO AUTO — fail input validation, with the type checker none the wiser
+  // because the input is typed `DisplayScene`. The wall could only ever be put
+  // on AUTO by writing the row by hand. `display-scene-parity.test.ts` now
+  // fails if these three lists drift apart again.
   'auto',
   'holding',
   'lineups',
@@ -126,6 +127,7 @@ export const displaySceneEnum = z.enum([
   'final_match',
   'leaderboard',
   'ceremony',
+  'player_entrance',
 ]);
 
 export const displaySceneSchema = commandBase.extend({

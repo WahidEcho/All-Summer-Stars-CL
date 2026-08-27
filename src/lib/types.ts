@@ -48,7 +48,9 @@ export type DisplayScene =
   | 'challenge_result'
   | 'final_match'
   | 'leaderboard'
-  | 'ceremony';
+  | 'ceremony'
+  // One player's walk-out card; `payload.playerId` names who is on screen.
+  | 'player_entrance';
 
 // --------------------------------------------------------------------
 // Scoring profile — the single source of truth for every point value.

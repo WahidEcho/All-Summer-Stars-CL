@@ -38,6 +38,7 @@ const ALL_SCENES: ReadonlyArray<DisplayScene> = [
   'final_match',
   'leaderboard',
   'ceremony',
+  'player_entrance',
 ];
 
 describe('display scene parity', () => {

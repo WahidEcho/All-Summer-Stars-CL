@@ -8,6 +8,7 @@ import { HoldingScene } from '@/components/tv/scenes/HoldingScene';
 import { LeaderboardScene } from '@/components/tv/scenes/LeaderboardScene';
 import { LineupsScene } from '@/components/tv/scenes/LineupsScene';
 import { LiveRoundScene } from '@/components/tv/scenes/LiveRoundScene';
+import { PlayerEntranceScene } from '@/components/tv/scenes/PlayerEntranceScene';
 import { RoundResultScene } from '@/components/tv/scenes/RoundResultScene';
 import type { SceneProps } from '@/components/tv/scene-props';
 
@@ -45,6 +46,8 @@ export function SceneRouter(props: SceneProps) {
       return <LeaderboardScene {...props} />;
     case 'ceremony':
       return <CeremonyScene {...props} />;
+    case 'player_entrance':
+      return <PlayerEntranceScene {...props} />;
     // 'auto' is resolved by the director inside TvSurface and should never
     // reach the router; if it somehow does, the holding slate is the one
     // composition that is always safe to show in front of a crowd.
