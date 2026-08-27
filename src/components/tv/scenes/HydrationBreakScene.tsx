@@ -124,7 +124,11 @@ export function HydrationBreakScene({ model, payload }: SceneProps) {
             than as a bar with time left in it. */}
         <div
           aria-hidden
-          className="bg-slate/45 ring-slate/40 h-[18px] w-[62%] overflow-hidden rounded-pill ring-1"
+          className="h-[18px] w-[62%] overflow-hidden rounded-pill"
+          // A literal tint of the fill rather than a palette token: the light
+          // tones in the set land near-white on this field, which is what left
+          // the track invisible and the fill looking like a stray rule.
+          style={{ background: 'rgba(61, 117, 126, 0.22)' }}
         >
           <div
             className="bg-aqua-700 h-full rounded-pill"
