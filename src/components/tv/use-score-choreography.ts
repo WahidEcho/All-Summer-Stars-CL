@@ -27,8 +27,8 @@ export interface BurstedScore {
   burst: number | null;
   /** Re-fires the burst when the same value is scored twice. */
   burstKey: string | undefined;
-  /** Hand to the burst's `onComplete`. */
-  onBurstComplete: () => void;
+  /** Hand to the burst's `onComplete`. Ignores anything but the live burst. */
+  onBurstComplete: (completedKey?: string | number) => void;
   /** True from the moment an attempt lands until the figure has caught up. */
   active: boolean;
 }
@@ -147,15 +147,31 @@ export function useBurstedScore(
   const live =
     ledger.flight && ledger.flight.forId === latestId ? ledger.flight : null;
 
-  const onBurstComplete = useCallback(() => {
-    setLedger((current) => (current.flight ? { ...current, flight: null } : current));
+  // The identity check is the whole point. A burst reports completion when it
+  // finishes travelling *and* when it is replaced — `AnimatePresence` runs the
+  // outgoing one's exit after the new flight is already installed — so an
+  // unguarded callback let the previous `+N` cancel the next one. Two attempts
+  // inside the two-second window then showed one burst and a snapping score,
+  // which is the fault this choreography exists to prevent.
+  const onBurstComplete = useCallback((completedKey?: string | number) => {
+    setLedger((current) => {
+      if (!current.flight) return current;
+      if (completedKey !== undefined && current.flight.forId !== completedKey) {
+        return current;
+      }
+      return { ...current, flight: null };
+    });
   }, []);
 
   // A burst that never reports back (an unmounted card, a dropped frame) must
   // not freeze the score. This is the safety net, not the normal path.
   useEffect(() => {
     if (!live) return;
-    const id = window.setTimeout(onBurstComplete, SCORE_SEQUENCE.total * 1000 + 400);
+    const forId = live.forId;
+    const id = window.setTimeout(
+      () => onBurstComplete(forId),
+      SCORE_SEQUENCE.total * 1000 + 400,
+    );
     return () => window.clearTimeout(id);
   }, [live, onBurstComplete]);
 

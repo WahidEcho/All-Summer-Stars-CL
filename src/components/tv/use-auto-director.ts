@@ -97,7 +97,13 @@ function heldResult(snapshot: EventSnapshot, nowMs: number): RoundRow | null {
     }
   }
   if (!best) return null;
-  return nowMs - bestAt < RESULT_HOLD_MS ? best : null;
+  // `Math.max(0, …)` is the floor under a clock that disagrees. A stamp that
+  // reads as being in the wall's future is a wall running behind, not a result
+  // published in the future: without the clamp the elapsed figure goes negative,
+  // every comparison below stays true, and the card parks over live play for the
+  // whole skew. Treating it as "just published" costs one full hold and nothing
+  // more. `nowMs` is server-anchored by the caller; this is the second belt.
+  return Math.max(0, nowMs - bestAt) < RESULT_HOLD_MS ? best : null;
 }
 
 /**
@@ -116,7 +122,7 @@ function heldChallenge(snapshot: EventSnapshot, nowMs: number) {
     bestAt = at;
   }
   if (!best) return null;
-  return nowMs - bestAt < CHALLENGE_HOLD_MS ? best : null;
+  return Math.max(0, nowMs - bestAt) < CHALLENGE_HOLD_MS ? best : null;
 }
 
 /**
@@ -226,6 +232,50 @@ interface Step {
 }
 
 /**
+ * The wall's clock, read in the server's frame.
+ *
+ * `anchor` pairs the snapshot's server-written `fetchedAt` with the client
+ * instant it arrived, so only the client's *rate* matters and its absolute
+ * setting never does. Exported for the tests, because the failure it prevents
+ * is silent: a venue display two minutes out either parks a result card over
+ * live play or expires every hold instantly, and both look like the director
+ * misbehaving rather than the clock.
+ */
+export function anchoredNow(
+  anchor: { fetchedAt: number; clientAt: number } | null,
+  nowMs: number,
+): number {
+  return anchor ? anchor.fetchedAt + (nowMs - anchor.clientAt) : nowMs;
+}
+
+/**
+ * What the wall shows, given the show's state and whatever entrance is playing.
+ *
+ * This is the whole of the director's decision, and it is pure so that the path
+ * the wall actually runs is the path under test. It used to live inline in the
+ * hook and evaluate holds first, which quietly inverted the precedence
+ * `steadyAutoScene` encodes: an open hold outranked the live 5v5, so ending a
+ * challenge during the final — or correcting an old round during the ceremony —
+ * cut the wall away from the match to a result card from forty minutes earlier.
+ * The tests covering that precedence exercised the pure steady state only, so
+ * they passed while the wall did the opposite.
+ */
+export function directedScene(
+  snapshot: EventSnapshot,
+  nowMs: number,
+  playing: DirectedScene | null,
+): DirectedScene {
+  const steady = steadyAutoScene(snapshot, nowMs);
+
+  // The 5v5 and the closing leaderboard own the wall outright.
+  if (steady.scene === 'final_match' || steady.scene === 'leaderboard') return steady;
+
+  // Otherwise a hold outranks an entrance that was already playing when the
+  // result landed.
+  return heldScene(snapshot, nowMs) ?? playing ?? steady;
+}
+
+/**
  * The full director: steady state plus the timed steps that play when a
  * transition happens under our watch. Returns null while inactive so the
  * caller falls back to the operator's own scene untouched.
@@ -238,6 +288,21 @@ export function useAutoDirector(
   // The result hold is a wall-clock window, so the surface needs a heartbeat to
   // notice it expiring. Reading the clock during render would be impure.
   const [nowMs, setNowMs] = useState(() => Date.now());
+  /**
+   * The snapshot's server timestamp, paired with the client instant it landed.
+   *
+   * Hold windows compare a server-written `published_at` against the wall's own
+   * clock, and those are not the same clock. A venue display that has been
+   * unplugged since the dress run can be a minute or two out, and the error is
+   * not academic: running slow parks a result card over live play for the whole
+   * skew, running fast expires every hold instantly and skips results — which
+   * is the fault these windows exist to prevent. `fetchedAt` is written by the
+   * server, so elapsed client time added to it reads in the server's frame and
+   * only the client's *rate* has to be right, never its absolute setting.
+   */
+  const [anchor, setAnchor] = useState<{ fetchedAt: number; clientAt: number } | null>(
+    null,
+  );
   const queue = useRef<Step[]>([]);
   const watchedId = useRef<string | null>(null);
   const primed = useRef(false);
@@ -261,7 +326,7 @@ export function useAutoDirector(
     // second ahead so the entrance is queued and already on `playing` at the
     // exact tick the hold lifts, instead of a frame of live round leaking
     // through between the two.
-    if (heldScene(snapshot, nowMs + 1_000)) return;
+    if (heldScene(snapshot, anchoredNow(anchor, nowMs) + 1_000)) return;
 
     const pending: Step[] = [];
 
@@ -302,7 +367,7 @@ export function useAutoDirector(
     advance();
     // `nowMs` is a deliberate dependency: hold windows close by clock, not by
     // data, so the queue must get a look at each tick, not just each snapshot.
-  }, [enabled, snapshot, nowMs]);
+  }, [enabled, snapshot, nowMs, anchor]);
 
   // Switching the director off abandons the queue outright.
   useEffect(() => {
@@ -322,6 +387,17 @@ export function useAutoDirector(
     return () => clearInterval(id);
   }, [enabled]);
 
+  // Re-anchor on every fresh read. Reading the clock is not allowed during
+  // render, so the anchor lands a beat later than the snapshot — harmless,
+  // because the wall re-renders every second regardless.
+  useEffect(() => {
+    if (!snapshot || anchor?.fetchedAt === snapshot.fetchedAt) return;
+    // One write per fresh read, guarded above, so this settles rather than
+    // cascading. Reading the clock is only legal out here, after the render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setAnchor({ fetchedAt: snapshot.fetchedAt, clientAt: Date.now() });
+  }, [snapshot, anchor]);
+
   useEffect(
     () => () => {
       if (timer.current) clearTimeout(timer.current);
@@ -330,7 +406,6 @@ export function useAutoDirector(
   );
 
   if (!enabled || !snapshot) return null;
-  // The holds are checked here too, not just in the steady state: an intro
-  // that was already playing when a result landed must yield to it.
-  return heldScene(snapshot, nowMs) ?? playing ?? steadyAutoScene(snapshot, nowMs);
+  // Everything below reasons in the server's frame, not the wall's.
+  return directedScene(snapshot, anchoredNow(anchor, nowMs), playing);
 }

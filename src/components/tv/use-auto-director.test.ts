@@ -12,7 +12,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildSampleSnapshot } from '@/components/tv/sample-model';
-import { steadyAutoScene } from '@/components/tv/use-auto-director';
+import {
+  anchoredNow,
+  directedScene,
+  steadyAutoScene,
+} from '@/components/tv/use-auto-director';
 import type { EventSnapshot } from '@/lib/data/snapshot';
 import type { ChallengeRow, RoundRow } from '@/lib/types';
 
@@ -182,5 +186,88 @@ describe('steadyAutoScene: precedence', () => {
       challenges: opened.challenges.map((c) => ({ ...c, status: 'draft' as const })),
     };
     expect(steadyAutoScene(untouched, T).scene).toBe('holding');
+  });
+});
+
+describe('directedScene: the decision the wall actually runs', () => {
+  // These cover the hook's own return rather than the steady state alone.
+  // The precedence tests above passed while the wall did the opposite, because
+  // they exercised the pure function and the wall ran the hook.
+
+  const matchSnapshot = (status: string) => {
+    const held = snapshotWith([
+      { challenge: c1, number: 5, status: 'published', publishedAtMs: 0 },
+    ]);
+    return {
+      ...held,
+      match: { ...buildSampleSnapshot('final_match').match!, status },
+    } as EventSnapshot;
+  };
+
+  it('gives the live 5v5 the wall even with a result hold wide open', () => {
+    // Ending a challenge mid-final stamps a fresh hold. The match still wins.
+    expect(directedScene(matchSnapshot('live'), T + 1_000, null).scene).toBe(
+      'final_match',
+    );
+  });
+
+  it('keeps the ceremony leaderboard even when an old round is republished', () => {
+    // A correction during the ceremony must not cut a 1v1 card over the podium.
+    expect(directedScene(matchSnapshot('completed'), T + 1_000, null).scene).toBe(
+      'leaderboard',
+    );
+  });
+
+  it('lets a hold outrank an entrance that was already playing', () => {
+    const snapshot = snapshotWith([
+      { challenge: c1, number: 1, status: 'published', publishedAtMs: 0 },
+      { challenge: c1, number: 2, status: 'live' },
+    ]);
+    const entrance = {
+      scene: 'head_to_head' as const,
+      payload: { challengeId: c1.id, roundId: 'round-1-2' },
+    };
+    expect(directedScene(snapshot, T + 2_000, entrance).scene).toBe('round_result');
+    // ...and hands the entrance back the moment the floor passes.
+    expect(directedScene(snapshot, T + 13_000, entrance)).toEqual(entrance);
+  });
+});
+
+describe('anchoredNow: the wall clock is never trusted', () => {
+  it('reads in the server frame when the wall is badly behind', () => {
+    // Venue display 90s slow. Raw, every hold would stay open for 102 seconds,
+    // parking a result card straight over the next round being played.
+    const serverAt = T;
+    const wallAt = T - 90_000;
+    const anchor = { fetchedAt: serverAt, clientAt: wallAt };
+
+    // Five seconds later by the wall's own reckoning.
+    expect(anchoredNow(anchor, wallAt + 5_000)).toBe(serverAt + 5_000);
+
+    const snapshot = snapshotWith([
+      { challenge: c1, number: 1, status: 'published', publishedAtMs: 0 },
+      { challenge: c1, number: 2, status: 'live' },
+    ]);
+    // Held early...
+    expect(directedScene(snapshot, anchoredNow(anchor, wallAt + 3_000), null).scene)
+      .toBe('round_result');
+    // ...and released on time, in real seconds, despite the skew.
+    expect(directedScene(snapshot, anchoredNow(anchor, wallAt + 13_000), null).scene)
+      .toBe('live_round');
+  });
+
+  it('reads in the server frame when the wall is ahead', () => {
+    // The other direction is the one that skips results outright.
+    const anchor = { fetchedAt: T, clientAt: T + 45_000 };
+    const snapshot = snapshotWith([
+      { challenge: c1, number: 1, status: 'published', publishedAtMs: 0 },
+      { challenge: c1, number: 2, status: 'live' },
+    ]);
+    expect(directedScene(snapshot, anchoredNow(anchor, T + 45_000 + 2_000), null).scene)
+      .toBe('round_result');
+  });
+
+  it('falls back to the raw clock before a snapshot has landed', () => {
+    expect(anchoredNow(null, 1234)).toBe(1234);
   });
 });

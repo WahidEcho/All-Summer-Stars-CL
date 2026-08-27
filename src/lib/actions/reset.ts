@@ -19,7 +19,7 @@
  * describes, so an event that was cleared can always say so.
  */
 
-import { runCommand, required, take, takeRows } from '@/lib/actions/_command';
+import { assertState, runCommand, required, take, takeRows } from '@/lib/actions/_command';
 import type { ActionResult, ResetCounts } from '@/lib/actions/types';
 import type { Db } from '@/lib/event';
 import type { ChallengeRow, RoundRow } from '@/lib/types';
@@ -103,8 +103,20 @@ export async function resetChallengeScores(input: {
     payload: { challengeId: input.challengeId, reason: input.reason },
     capability: 'admin',
     async run(ctx) {
-      const { db } = ctx;
+      const { db, eventId } = ctx;
       const challenge = await loadChallenge(db, input.challengeId);
+
+      // The production event and the rehearsal event share this database, and
+      // this command deletes. An id is easy to carry across from a stale tab,
+      // and a wipe aimed at a rehearsal challenge landing on the real one is
+      // unrecoverable — so the challenge has to belong to the event this
+      // deployment is actually running before anything is removed.
+      assertState(
+        challenge.event_id === eventId,
+        'That challenge belongs to a different event.',
+        'illegal_state',
+      );
+
       const counts: ResetCounts = { ...EMPTY, challenges: 1 };
 
       if (challenge.mechanic === 'final_match') {

@@ -25,8 +25,18 @@ export interface PointsBurstProps {
   direction?: 'up' | 'down';
   /** Travel distance in `em` of the burst's own font size. */
   travel?: number;
-  /** Fired when the burst has finished travelling — roll the total here. */
-  onComplete?: () => void;
+  /**
+   * Fired when the burst has finished travelling — roll the total here.
+   *
+   * Carries the `burstKey` of the burst that finished. It has to: with
+   * `AnimatePresence mode="wait"` the *outgoing* `+N` also reports completion
+   * when its exit animation ends, which lands after the next burst has already
+   * been installed. Without the identity the caller cannot tell the two apart,
+   * and a second attempt landing inside the window was cancelled by the first
+   * one's callback — the `+N` never drawn, the score snapping instead of
+   * rolling. The caller compares and ignores anything stale.
+   */
+  onComplete?: (burstKey?: string | number) => void;
   /** Word announced to screen readers, e.g. "plus five points". */
   label?: string;
   className?: string;
@@ -84,7 +94,7 @@ export function PointsBurst({
   // Reduced motion still needs the burst to hand control back to the caller.
   useEffect(() => {
     if (!reduced || !visible || !onComplete) return;
-    const id = window.setTimeout(onComplete, 900);
+    const id = window.setTimeout(() => onComplete(key), 900);
     return () => window.clearTimeout(id);
   }, [reduced, visible, onComplete, key]);
 
@@ -130,7 +140,7 @@ export function PointsBurst({
                   ease: EASE.overshoot,
                 }
           }
-          onAnimationComplete={reduced ? undefined : onComplete}
+          onAnimationComplete={reduced ? undefined : () => onComplete?.(key)}
         >
           <span aria-hidden>
             {sign}
