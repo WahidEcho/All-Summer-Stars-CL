@@ -45,15 +45,10 @@ import {
 } from '@/components/tv/use-score-choreography';
 import type { SceneProps } from '@/components/tv/scene-props';
 import type { SideModel } from '@/components/tv/scene-model';
-import type { AttemptRow, TeamCode } from '@/lib/types';
+import type { TeamCode } from '@/lib/types';
 
 /** The `TIME!` flash that separates a running clock from the official review. */
 const FLASH = [{ step: 'time' as const, ms: 900 }];
-
-/** The last confirmed attempt on a side — what a burst is fired from. */
-function latestOf(attempts: ReadonlyArray<AttemptRow>): AttemptRow | null {
-  return attempts.length > 0 ? attempts[attempts.length - 1] : null;
-}
 
 /** Figures for a slot that may be empty, so the hooks below always get a number. */
 function totalFor(player: PlayerLike | null): number {
@@ -261,11 +256,13 @@ function LiveSide({
  * enormous between them, and each player's attempt rail under their own name.
  *
  * Score choreography is the whole point of this screen. A confirmed attempt
- * fires `+N` beside the player who earned it; the round score is *held* at its
- * previous value until that burst lands, then rolls; the total follows, the
- * rank badge flips, and the team strip catches up last. Roughly 1.3 seconds
- * end to end, which is the band design.md asks for — never longer, because the
- * next attempt may already be in the air.
+ * fires `+N` beside the player who earned it and holds it there, readable,
+ * for about two seconds; the round score is *held* at its previous value until
+ * that burst lands, then rolls once — previous total to new total, never from
+ * zero; the total follows, the rank badge flips, and the team strip catches up
+ * last. Roughly three seconds end to end. An attempt arriving mid-sequence
+ * does not queue: the interrupted figure settles to its real value and the new
+ * burst takes over, so the wall is never more than one flight behind the game.
  *
  * When the clock expires the room must stop reading the last figure as final:
  * live motion is replaced by `TIME!` and then the verifying panel, with the
@@ -299,8 +296,8 @@ export function LiveRoundScene({ model }: SceneProps) {
   const flash = useTimedSequence(FLASH, verifying && round ? `${round.id}-time` : null);
 
   // --- score choreography ---------------------------------------------------
-  const burstA = useBurstedScore(latestOf(model.attemptsA), model.roundScoreA);
-  const burstB = useBurstedScore(latestOf(model.attemptsB), model.roundScoreB);
+  const burstA = useBurstedScore(model.attemptsA, model.roundScoreA);
+  const burstB = useBurstedScore(model.attemptsB, model.roundScoreB);
 
   const totalA = useLaggedNumber(totalFor(model.playerA), SCORE_SEQUENCE.totalRoll);
   const totalB = useLaggedNumber(totalFor(model.playerB), SCORE_SEQUENCE.totalRoll);

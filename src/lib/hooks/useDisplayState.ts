@@ -152,12 +152,13 @@ export function useDisplayState(
   useEffect(() => registerConnectionRetry(() => void fetchRow()), [fetchRow]);
 
   // Safety-net poll. The scene cut is the one message the wall must never
-  // miss, and a websocket can die without an error event. Fifteen seconds of
-  // lag on a lost socket is survivable; a wall frozen on the previous round
-  // until someone finds a keyboard is not.
+  // miss, and a websocket can die without an error event. Four seconds matches
+  // the snapshot's own poll: an operator who cuts and sees nothing for fifteen
+  // seconds concludes the console is broken and starts mashing, so the ceiling
+  // on cut latency has to sit inside their patience. It is one tiny row.
   useEffect(() => {
     if (!enabled) return;
-    const id = window.setInterval(() => void fetchRow(), 15_000);
+    const id = window.setInterval(() => void fetchRow(), 4_000);
     return () => window.clearInterval(id);
   }, [enabled, fetchRow]);
 

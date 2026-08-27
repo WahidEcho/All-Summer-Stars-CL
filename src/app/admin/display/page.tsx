@@ -573,6 +573,28 @@ export default function DisplayControlPage() {
     }
   }
 
+  /**
+   * Hand the wall back to the director in one tap.
+   *
+   * The way back to AUTO used to be the long way — select the tile, load it,
+   * take it — which is exactly wrong for the moment it serves: an operator who
+   * cut away manually and now wants the show to just run again. One press,
+   * no payload, nothing to get wrong.
+   */
+  async function goToAuto(): Promise<void> {
+    const result = await runner.run(
+      () =>
+        setDisplayScene({
+          idempotencyKey: newIdempotencyKey('program-auto'),
+          deviceId,
+          scene: 'auto',
+          payload: {},
+        }),
+      { success: 'AUTO is on air — the wall is following the show again.' },
+    );
+    if (result.ok) void refreshDisplay();
+  }
+
   async function goToHolding(): Promise<void> {
     const result = await runner.run(
       () =>
@@ -711,6 +733,19 @@ export default function DisplayControlPage() {
             onClick={() => void take()}
           >
             TAKE LIVE
+          </AdminButton>
+          <AdminButton
+            variant="primary"
+            size="lg"
+            disabled={programScene === 'auto'}
+            title={
+              programScene === 'auto'
+                ? 'AUTO is already on air.'
+                : 'Puts the wall back on AUTO immediately — it follows the show by itself.'
+            }
+            onClick={() => void goToAuto()}
+          >
+            BACK TO AUTO
           </AdminButton>
           <AdminButton
             variant="secondary"

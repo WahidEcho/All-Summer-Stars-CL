@@ -82,3 +82,5 @@ export {
   denyControllerTransfer,
   isLeaseLive,
 } from '@/lib/actions/lease';
+
+export { resetChallengeScores, resetEventScores } from '@/lib/actions/reset';

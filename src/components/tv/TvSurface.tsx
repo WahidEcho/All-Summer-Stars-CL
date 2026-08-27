@@ -211,6 +211,13 @@ export function TvSurface({
     initial: initialSnapshot,
     enabled: live,
     slug,
+    // The wall polls hard. Realtime is the fast path, but a broadcast display
+    // cannot be left waiting on it: with fifteen table bindings on one channel,
+    // a round going live has been observed taking the full safety-net poll to
+    // arrive, which is how an operator ends up refreshing between rounds. One
+    // server-assembled request every few seconds is cheap — there is exactly
+    // one wall — and it puts a hard ceiling on how stale the screen can be.
+    pollMs: 4_000,
     challengeId: autoActive ? directorPins.challengeId : pinnedChallengeId,
     roundId: autoActive ? directorPins.roundId : pinnedRoundId,
   });

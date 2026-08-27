@@ -51,8 +51,9 @@ import {
   reopenChallenge,
   startChallenge,
 } from '@/app/admin/challenges/actions';
+import { resetChallengeScores } from '@/lib/actions';
 
-type Intent = 'end' | 'force-end' | 'reopen' | 'end-match';
+type Intent = 'end' | 'force-end' | 'reopen' | 'end-match' | 'reset';
 
 interface Pending {
   intent: Intent;
@@ -200,6 +201,23 @@ export default function ChallengeLifecyclePage() {
     }
   }
 
+  async function resetScores(challenge: ChallengeRow, reason: string): Promise<void> {
+    const result = await runner.run(
+      () =>
+        resetChallengeScores({
+          idempotencyKey: newIdempotencyKey('challenge-reset'),
+          deviceId,
+          challengeId: challenge.id,
+          reason,
+        }),
+      { success: `${challenge.title} is back to unplayed.` },
+    );
+    if (result.ok) {
+      setPending(null);
+      void refresh();
+    }
+  }
+
   function confirm(reason: string): void {
     if (!pending) return;
     switch (pending.intent) {
@@ -210,6 +228,9 @@ export default function ChallengeLifecyclePage() {
 
       case 'end-match':
         void endMatchChallenge(pending.challenge);
+        return;
+      case 'reset':
+        void resetScores(pending.challenge, reason);
         return;
       case 'reopen':
         void reopen(pending.challenge, reason);
@@ -418,6 +439,13 @@ export default function ChallengeLifecyclePage() {
                         {endReady ? 'END CHALLENGE' : 'END CHALLENGE ANYWAY'}
                       </AdminButton>
                     )}
+                    <AdminButton
+                      variant="danger"
+                      disabled={busy}
+                      onClick={() => setPending({ intent: 'reset', challenge })}
+                    >
+                      CLEAR SCORES
+                    </AdminButton>
                   </ButtonRow>
 
                   {!completed && !endReady ? (
@@ -443,12 +471,16 @@ export default function ChallengeLifecyclePage() {
       <ConfirmDialog
         open={pending !== null}
         title={
-          pending?.intent === 'reopen'
-            ? `Reopen ${pending.challenge.title}?`
-            : `End ${pending?.challenge.title ?? 'this challenge'}?`
+          pending?.intent === 'reset'
+            ? `Clear the scores of ${pending.challenge.title}?`
+            : pending?.intent === 'reopen'
+              ? `Reopen ${pending.challenge.title}?`
+              : `End ${pending?.challenge.title ?? 'this challenge'}?`
         }
         description={
-          pending?.intent === 'reopen'
+          pending?.intent === 'reset'
+            ? 'Every attempt, goal and point recorded in this challenge is removed and its rounds go back to unplayed. Teams, players, photos, lineups and the scoring profile are untouched, and no other challenge is affected. This deletes rather than reverses, so it cannot be undone.'
+            : pending?.intent === 'reopen'
             ? 'The challenge goes back to live and its recorded winner is cleared. Rounds that were closed with it return to published, so they can be reopened individually.'
             : pending?.intent === 'end-match'
               ? 'This records the match result on the challenge row. The match points and win bonus were already written when the match was ended.'
@@ -457,18 +489,26 @@ export default function ChallengeLifecyclePage() {
                 : 'This publishes the challenge result and awards the challenge bonus to the winning lineup.'
         }
         confirmLabel={
-          pending?.intent === 'reopen'
+          pending?.intent === 'reset'
+            ? 'Clear the scores'
+            : pending?.intent === 'reopen'
             ? 'Reopen challenge'
             : pending?.intent === 'force-end'
               ? 'End it anyway'
               : 'End challenge'
         }
         confirmWord={pending?.intent === 'end' ? null : 'CONFIRM'}
-        requireReason={pending?.intent === 'force-end' || pending?.intent === 'reopen'}
+        requireReason={
+          pending?.intent === 'force-end' ||
+          pending?.intent === 'reopen' ||
+          pending?.intent === 'reset'
+        }
         reasonLabel={
-          pending?.intent === 'reopen'
-            ? 'Why is this being reopened?'
-            : 'Why is it ending early?'
+          pending?.intent === 'reset'
+            ? 'Why are these scores being cleared?'
+            : pending?.intent === 'reopen'
+              ? 'Why is this being reopened?'
+              : 'Why is it ending early?'
         }
         busy={runner.pending}
         error={runner.status?.tone === 'error' ? runner.status.message : null}
@@ -478,7 +518,11 @@ export default function ChallengeLifecyclePage() {
         }}
         onConfirm={confirm}
       >
-        {pending && pending.intent !== 'reopen' && pending.intent !== 'end-match' && pendingResult ? (
+        {pending &&
+        pending.intent !== 'reopen' &&
+        pending.intent !== 'end-match' &&
+        pending.intent !== 'reset' &&
+        pendingResult ? (
           <ChallengeResultPreview
             result={pendingResult}
             teamsByCode={teamsByCode}
@@ -503,6 +547,15 @@ export default function ChallengeLifecyclePage() {
               saw, correct the match on the scoring controller first.
             </p>
           </div>
+        ) : null}
+
+        {pending?.intent === 'reset' ? (
+          <Callout tone="danger" title="This deletes, it does not reverse">
+            Corrections elsewhere in the system append a compensating entry so the history
+            survives. A score reset removes the play outright — it is for a rehearsal or a
+            false start, not for fixing a wrong score during the show. To correct a real
+            result, reopen the round on the scoring controller instead.
+          </Callout>
         ) : null}
 
         {pending?.intent === 'reopen' ? (

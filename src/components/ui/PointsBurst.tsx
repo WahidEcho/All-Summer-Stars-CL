@@ -48,8 +48,12 @@ const TONE: Record<PointsBurstTone, string> = {
 };
 
 /**
- * The `+N` that appears beside a player, expands, then travels into their
- * total. Screen 03 of design.md: attempt → player → ranking → team.
+ * The `+N` that appears beside a player, holds long enough to be read from the
+ * far side of the pitch, then travels into their total. Screen 03 of design.md:
+ * attempt → player → ranking → team. The whole appearance spans
+ * `SCORE_SEQUENCE.burstShow` (~2 seconds), most of it spent holding at full
+ * size — the burst is the one element the room actually reads, so the travel
+ * is the coda, not the show.
  *
  * The component owns only the burst itself. Sequencing lives with the caller:
  * render the burst, and roll the total from `onComplete`.
@@ -112,8 +116,17 @@ export function PointsBurst({
             reduced
               ? { duration: 0 }
               : {
-                  duration: SCORE_SEQUENCE.total * 0.62,
-                  times: [0, 0.22, 0.5, 1],
+                  // Pop in fast, hold at full size until `burstTravel`, then
+                  // spend the last leg travelling into the total. The hold is
+                  // deliberately most of the window: ~0.2s in, ~1.2s readable,
+                  // ~0.6s of travel.
+                  duration: SCORE_SEQUENCE.burstShow,
+                  times: [
+                    0,
+                    0.11,
+                    SCORE_SEQUENCE.burstTravel / SCORE_SEQUENCE.burstShow,
+                    1,
+                  ],
                   ease: EASE.overshoot,
                 }
           }

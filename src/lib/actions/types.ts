@@ -403,3 +403,14 @@ export const LEASE_RENEW_MS = 5_000;
 export type DisplayStateResult = ActionResult<DisplayStateRow>;
 export type ScoringProfileResult = ActionResult<ScoringProfileRow>;
 export type TimerResult = ActionResult<TimerRow>;
+
+/** What a score reset removed. Reported back so the UI can state it plainly. */
+export interface ResetCounts {
+  attempts: number;
+  goals: number;
+  penaltyAttempts: number;
+  ledgerEntries: number;
+  rounds: number;
+  matches: number;
+  challenges: number;
+}

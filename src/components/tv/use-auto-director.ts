@@ -16,6 +16,7 @@
  *         result can never be flashed past the room
  *   fifth result published and the challenge ended
  *       → CHALLENGE RESULT, held until the next challenge's first round starts
+ *         — and for at least twenty seconds even if it starts immediately
  *   the 5v5 under way (any of its states, golden goal and penalties included)
  *       → FINAL MATCH
  *   final match completed
@@ -41,6 +42,8 @@ const LINEUPS_HOLD_MS = 20_000;
 const HEAD_TO_HEAD_HOLD_MS = 10_000;
 /** The floor under every published result, whatever the controller does next. */
 const RESULT_HOLD_MS = 12_000;
+/** The floor under a completed challenge's result card — the bigger moment. */
+const CHALLENGE_HOLD_MS = 20_000;
 
 /** States that mean a 1v1 round currently owns the show. */
 const ROUND_IN_FLIGHT: ReadonlyArray<RoundRow['status']> = [
@@ -73,10 +76,76 @@ function liveRoundOf(snapshot: EventSnapshot): RoundRow | null {
 }
 
 /**
+ * The round published within the hold window, if any.
+ *
+ * Derived from `published_at` rather than from anything the client remembers.
+ * An in-memory "which round was I watching" is exactly what a refetch race,
+ * a remount or a reconnect loses — and losing it is what let a result be
+ * skipped. A timestamp in the data cannot be lost.
+ */
+function heldResult(snapshot: EventSnapshot, nowMs: number): RoundRow | null {
+  let best: RoundRow | null = null;
+  let bestAt = 0;
+  for (const round of snapshot.allRounds) {
+    if (!round.published_at) continue;
+    const at = Date.parse(round.published_at);
+    if (Number.isNaN(at) || at > bestAt) {
+      if (!Number.isNaN(at)) {
+        best = round;
+        bestAt = at;
+      }
+    }
+  }
+  if (!best) return null;
+  return nowMs - bestAt < RESULT_HOLD_MS ? best : null;
+}
+
+/**
+ * The challenge completed within its hold window, if any. Same construction as
+ * `heldResult`: `completed_at` is stamped by the complete-challenge command, so
+ * the window is carried by the data and survives anything the client does.
+ */
+function heldChallenge(snapshot: EventSnapshot, nowMs: number) {
+  let best: (typeof snapshot.challenges)[number] | null = null;
+  let bestAt = 0;
+  for (const challenge of snapshot.challenges) {
+    if (challenge.mechanic === 'final_match' || !challenge.completed_at) continue;
+    const at = Date.parse(challenge.completed_at);
+    if (Number.isNaN(at) || at <= bestAt) continue;
+    best = challenge;
+    bestAt = at;
+  }
+  if (!best) return null;
+  return nowMs - bestAt < CHALLENGE_HOLD_MS ? best : null;
+}
+
+/**
+ * The scene a hold window demands right now, or null when no window is open.
+ *
+ * A just-published round outranks a just-completed challenge — the room sees
+ * the round it watched, then the challenge card — and both outrank a round
+ * that has already gone live underneath them.
+ */
+function heldScene(snapshot: EventSnapshot, nowMs: number): DirectedScene | null {
+  const round = heldResult(snapshot, nowMs);
+  if (round) {
+    return {
+      scene: 'round_result',
+      payload: { challengeId: round.challenge_id, roundId: round.id },
+    };
+  }
+  const challenge = heldChallenge(snapshot, nowMs);
+  if (challenge) {
+    return { scene: 'challenge_result', payload: { challengeId: challenge.id } };
+  }
+  return null;
+}
+
+/**
  * Where the show stands, ignoring the timed steps. Pure, so it also decides
  * the server-rendered first frame.
  */
-export function steadyAutoScene(snapshot: EventSnapshot): DirectedScene {
+export function steadyAutoScene(snapshot: EventSnapshot, nowMs = Date.now()): DirectedScene {
   const match = snapshot.match;
   const finalChallenge = snapshot.challenges.find((c) => c.mechanic === 'final_match') ?? null;
 
@@ -93,6 +162,12 @@ export function steadyAutoScene(snapshot: EventSnapshot): DirectedScene {
   if (match && match.status === 'completed') {
     return { scene: 'leaderboard', payload: {} };
   }
+
+  // An open hold window outranks a round that has just gone live: the room
+  // sees the result of what it watched — round, then challenge — before the
+  // next pairing.
+  const held = heldScene(snapshot, nowMs);
+  if (held) return held;
 
   const live = liveRoundOf(snapshot);
   if (live) {
@@ -160,54 +235,39 @@ export function useAutoDirector(
   enabled: boolean,
 ): DirectedScene | null {
   const [playing, setPlaying] = useState<DirectedScene | null>(null);
+  // The result hold is a wall-clock window, so the surface needs a heartbeat to
+  // notice it expiring. Reading the clock during render would be impure.
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const queue = useRef<Step[]>([]);
-  const watched = useRef<RoundRow | null>(null);
+  const watchedId = useRef<string | null>(null);
   const primed = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const live = snapshot ? liveRoundOf(snapshot) : null;
-  const liveId = live?.id ?? null;
-
-  // The publish detector needs the watched round's CURRENT status, not the
-  // stale row captured when it went live.
-  const watchedNow =
-    snapshot && watched.current
-      ? (snapshot.allRounds.find((r) => r.id === watched.current?.id) ?? null)
-      : null;
-  const watchedPublished =
-    watchedNow != null &&
-    (watchedNow.status === 'published' || watchedNow.status === 'completed');
-
   useEffect(() => {
     if (!enabled || !snapshot) return;
+
+    const live = liveRoundOf(snapshot);
 
     // First look at a wall that is already mid-show: adopt the state without
     // replaying anything the room has already watched.
     if (!primed.current) {
       primed.current = true;
-      watched.current = live;
+      watchedId.current = live?.id ?? null;
       return;
     }
 
+    // While a hold window is open, no intro may start — the render below
+    // prefers the hold over anything this queue plays. The effect peeks one
+    // second ahead so the entrance is queued and already on `playing` at the
+    // exact tick the hold lifts, instead of a frame of live round leaking
+    // through between the two.
+    if (heldScene(snapshot, nowMs + 1_000)) return;
+
     const pending: Step[] = [];
 
-    // The round we were showing has just been published: its result gets the
-    // floor before anything else — including a next round that started the
-    // same second.
-    if (watchedPublished && watchedNow) {
-      pending.push({
-        directed: {
-          scene: 'round_result',
-          payload: { challengeId: watchedNow.challenge_id, roundId: watchedNow.id },
-        },
-        holdMs: RESULT_HOLD_MS,
-      });
-      watched.current = null;
-    }
-
-    // A round started under our watch — its entrance queues behind any hold.
-    if (live && live.id !== watched.current?.id) {
-      watched.current = live;
+    // A round started under our watch — play its entrance.
+    if (live && live.id !== watchedId.current) {
+      watchedId.current = live.id;
       if (live.number === 1) {
         pending.push({
           directed: { scene: 'lineups', payload: { challengeId: live.challenge_id } },
@@ -233,17 +293,16 @@ export function useAutoDirector(
       const step = queue.current.shift();
       if (!step) {
         timer.current = null;
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setPlaying(null);
         return;
       }
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPlaying(step.directed);
       timer.current = setTimeout(advance, step.holdMs);
     };
     advance();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the transitions alone
-  }, [enabled, liveId, watchedPublished]);
+    // `nowMs` is a deliberate dependency: hold windows close by clock, not by
+    // data, so the queue must get a look at each tick, not just each snapshot.
+  }, [enabled, snapshot, nowMs]);
 
   // Switching the director off abandons the queue outright.
   useEffect(() => {
@@ -252,8 +311,15 @@ export function useAutoDirector(
     timer.current = null;
     queue.current = [];
     primed.current = false;
+    // Abandoning a queue on shutdown is a single terminal write, not a cascade.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPlaying(null);
+  }, [enabled]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const id = setInterval(() => setNowMs(Date.now()), 1_000);
+    return () => clearInterval(id);
   }, [enabled]);
 
   useEffect(
@@ -264,5 +330,7 @@ export function useAutoDirector(
   );
 
   if (!enabled || !snapshot) return null;
-  return playing ?? steadyAutoScene(snapshot);
+  // The holds are checked here too, not just in the steady state: an intro
+  // that was already playing when a result landed must yield to it.
+  return heldScene(snapshot, nowMs) ?? playing ?? steadyAutoScene(snapshot, nowMs);
 }

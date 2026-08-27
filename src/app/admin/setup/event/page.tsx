@@ -19,7 +19,7 @@ import { toDataURL as qrToDataUrl } from 'qrcode';
 import { EVENT_SLUG, SITE_URL } from '@/lib/event';
 import { requireEvent } from '@/lib/data/queries';
 import { supabase } from '@/lib/supabase/client';
-import { updateEvent } from '@/lib/actions';
+import { resetEventScores, updateEvent } from '@/lib/actions';
 import { newIdempotencyKey, useDeviceId } from '@/lib/hooks';
 import type { EventRow, EventStatus } from '@/lib/types';
 import { EventQr } from '@/components/brand';
@@ -28,6 +28,7 @@ import {
   AdminButton,
   ButtonRow,
   Callout,
+  ConfirmDialog,
   Field,
   FieldGrid,
   KeyValue,
@@ -339,6 +340,9 @@ const STATUS_TONE: Record<EventStatus, 'live' | 'winner' | 'draw' | 'pending' | 
 export default function EventSetupPage() {
   const deviceId = useDeviceId();
   const runner = useActionRunner();
+  const resetRunner = useActionRunner();
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetSummary, setResetSummary] = useState<string | null>(null);
 
   const [row, setRow] = useState<EventRow | null>(null);
   const [draft, setDraft] = useState<EventDraft | null>(null);
@@ -819,6 +823,83 @@ export default function EventSetupPage() {
           />
         </dl>
       </Panel>
+
+      <Panel
+        title="Clear the scores"
+        description="Puts the event back to unplayed for a fresh run. Setup is untouched."
+      >
+        <div className="space-y-4">
+          <Callout tone="warning" title="Setup survives — only the play is removed">
+            Teams, players, photos, focal points, lineups, sponsors, the scoring profile and
+            the QR target all stay exactly as they are. What goes is every attempt, goal,
+            penalty and point, across all five challenges and the final match; the rounds
+            return to unplayed and the wall drops back to the holding screen.
+          </Callout>
+
+          {resetSummary ? (
+            <Callout tone="success" title="Scores cleared">
+              {resetSummary}
+            </Callout>
+          ) : null}
+
+          <ButtonRow>
+            <AdminButton
+              variant="danger"
+              disabled={resetRunner.pending}
+              onClick={() => setResetOpen(true)}
+            >
+              CLEAR ALL SCORES
+            </AdminButton>
+          </ButtonRow>
+
+          <p className="text-text-muted text-[0.75rem] leading-body">
+            To clear a single challenge instead, use CLEAR SCORES on that challenge in
+            Challenges.
+          </p>
+        </div>
+      </Panel>
+
+      <ConfirmDialog
+        open={resetOpen}
+        title="Clear every score in this event?"
+        description="Every attempt, goal, penalty and point is removed and all five challenges go back to unplayed. Teams, players, photos, lineups, sponsors and the scoring profile are untouched. This deletes rather than reverses, so it cannot be undone."
+        confirmLabel="Clear all scores"
+        confirmWord="CONFIRM"
+        requireReason
+        reasonLabel="Why are the scores being cleared?"
+        busy={resetRunner.pending}
+        error={resetRunner.status?.tone === 'error' ? resetRunner.status.message : null}
+        onCancel={() => {
+          setResetOpen(false);
+          resetRunner.clear();
+        }}
+        onConfirm={(reason) => {
+          void (async () => {
+            const result = await resetRunner.run(
+              () =>
+                resetEventScores({
+                  idempotencyKey: newIdempotencyKey('event-reset'),
+                  deviceId,
+                  reason,
+                }),
+              { success: 'The event is back to unplayed.' },
+            );
+            if (result.ok) {
+              const c = result.data;
+              setResetSummary(
+                `Removed ${c.attempts} attempts, ${c.goals} goals, ${c.penaltyAttempts} penalty kicks and ${c.ledgerEntries} point entries across ${c.rounds} rounds.`,
+              );
+              setResetOpen(false);
+            }
+          })();
+        }}
+      >
+        <Callout tone="danger" title="This deletes, it does not reverse">
+          Corrections elsewhere append a compensating entry so the history survives. A score
+          reset removes the play outright — it is for a rehearsal or a run before doors, not
+          for fixing a wrong score during the show.
+        </Callout>
+      </ConfirmDialog>
 
       <SaveBar
         dirty={dirty}

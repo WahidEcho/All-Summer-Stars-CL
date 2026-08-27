@@ -3,8 +3,9 @@
 /**
  * The score-change choreography from design.md screen 03.
  *
- *   +5 appears beside the player  →  flies into the round score  →  the total
- *   rolls  →  the rank updates  →  the team total catches up
+ *   +5 appears beside the player  →  holds, readable  →  flies into the round
+ *   score  →  the score rolls  →  the total follows  →  the rank updates  →
+ *   the team total catches up
  *
  * The components own the drawing; these hooks own the timing. Nothing here ever
  * invents a number: a held figure is always the *previous* real value, and the
@@ -32,54 +33,122 @@ export interface BurstedScore {
   active: boolean;
 }
 
+/** A `+N` in mid-air: which attempt it belongs to, and what it is holding back. */
+interface Flight {
+  forId: string;
+  value: number;
+  held: number;
+}
+
+/**
+ * Everything the burst choreography remembers, in one record, so any render can
+ * tell at a glance whether the stored state has caught up with the props — the
+ * same shape `useRevealStage` keeps its stage in.
+ */
+interface BurstLedger {
+  /** The round the rail belongs to; null while the rail is empty. */
+  roundId: string | null;
+  /** The newest attempt id this ledger has reacted to. */
+  seenId: string | null;
+  /**
+   * Every attempt id that has already had its moment. A reversal flips a row
+   * out of the confirmed rail, which can put an *older* attempt back at the
+   * end — being in here is what keeps it silent the second time round.
+   */
+  seen: ReadonlySet<string>;
+  /** The score as of the last caught-up commit — what a new flight holds. */
+  prior: number;
+  flight: Flight | null;
+}
+
 /**
  * Hold a live round score at its previous value while a `+N` travels into it.
  *
- * `latest` is the most recent confirmed attempt on that side; a change in its
- * id is what starts the sequence, so scoring 3 twice in a row bursts twice.
+ * `attempts` is the side's confirmed rail; a genuinely new id at its end is
+ * what starts the sequence, so scoring 3 twice in a row bursts twice, while a
+ * fresh snapshot re-delivering the same rows — the 4-second poll arriving
+ * seconds after the realtime insert, with new object identities but the same
+ * ids — changes nothing on screen at all.
+ *
+ * The ledger is adjusted *during render*, the moment the props stop matching
+ * it, so the very first frame that carries a new attempt already shows the
+ * held score with the `+N` beside it. An earlier shape did this in an effect,
+ * which runs after paint — so the new score reached the numeral one painted
+ * frame before the hold did: the roll started, was yanked back down to the
+ * held figure, and ran again when the burst landed. One attempt, two visible
+ * animations, each apparently from zero. Adjusting pre-paint means the numeral
+ * moves exactly once, when the burst lands.
  */
 export function useBurstedScore(
-  latest: AttemptRow | null,
+  attempts: ReadonlyArray<AttemptRow>,
   score: number,
 ): BurstedScore {
   const reduced = useReducedMotion();
-  // The flight carries the attempt it belongs to. Anything that changes the
-  // attempt therefore *ends* the flight by derivation — a reversal, a cut to
-  // another round, a zero-point attempt — so no held figure can outlive the
-  // number it was holding for.
-  const [flight, setFlight] = useState<{
-    forId: string;
-    value: number;
-    held: number;
-  } | null>(null);
 
-  const seenId = useRef<string | null>(latest?.id ?? null);
-  const previousScore = useRef(score);
+  const latest = attempts.length > 0 ? attempts[attempts.length - 1] : null;
   const latestId = latest?.id ?? null;
+  const latestRoundId = latest?.round_id ?? null;
   const latestPoints = latest?.points ?? 0;
 
-  useEffect(() => {
-    if (latestId === seenId.current) {
-      // No new attempt — a reversal or a fresh snapshot. Track the value so the
-      // next burst holds the right figure, and never strand a held number.
-      previousScore.current = score;
-      return;
+  // Seeded with everything already on the rail, so a wall cut to this scene
+  // mid-round celebrates nothing it did not watch happen.
+  const [ledger, setLedger] = useState<BurstLedger>(() => ({
+    roundId: latestRoundId,
+    seenId: latestId,
+    seen: new Set(attempts.map((a) => a.id)),
+    prior: score,
+    flight: null,
+  }));
+
+  if (ledger.seenId !== latestId) {
+    // The rail's newest id moved. Each branch below re-establishes
+    // `seenId === latestId`, so this settles in one pre-paint pass.
+    if (latestId === null) {
+      // The rail emptied: a new round opening, or every attempt reversed.
+      // Forget the old round so its ids cannot silence the one that follows.
+      setLedger({ roundId: null, seenId: null, seen: new Set(), prior: score, flight: null });
+    } else if (ledger.roundId !== null && latestRoundId !== ledger.roundId) {
+      // Cut into a round already underway. Absorb its whole rail silently —
+      // those attempts happened before this surface was watching.
+      setLedger({
+        roundId: latestRoundId,
+        seenId: latestId,
+        seen: new Set(attempts.map((a) => a.id)),
+        prior: score,
+        flight: null,
+      });
+    } else {
+      // An id at the end of the watched rail. Brand new: fire the flight,
+      // holding the score the previous commit showed. Already seen — a
+      // reversal has re-exposed an older attempt — or worth nothing: no
+      // flight, and the figure simply rolls to its corrected value.
+      const fresh = !ledger.seen.has(latestId) && latestPoints !== 0 && !reduced;
+      const seen = new Set(ledger.seen);
+      seen.add(latestId);
+      setLedger({
+        roundId: latestRoundId,
+        seenId: latestId,
+        seen,
+        prior: score,
+        flight: fresh
+          ? { forId: latestId, value: latestPoints, held: ledger.prior }
+          : null,
+      });
     }
+  } else if (ledger.prior !== score) {
+    // Same attempt, moved value — a fresh poll after a correction. Track it so
+    // the next burst holds the right figure, and never strand a held number.
+    setLedger({ ...ledger, prior: score });
+  }
 
-    const priorScore = previousScore.current;
-    seenId.current = latestId;
-    previousScore.current = score;
-
-    // Nothing to celebrate: the derived flight below has already lapsed.
-    if (latestId === null || latestPoints === 0 || reduced) return;
-
-    setFlight({ forId: latestId, value: latestPoints, held: priorScore });
-  }, [latestId, latestPoints, score, reduced]);
-
-  const live = flight && flight.forId === latestId ? flight : null;
+  // The `forId` guard means anything that changes the attempt *ends* the
+  // flight by derivation — a reversal, a cut to another round, a zero-point
+  // attempt — so no held figure can outlive the number it was holding for.
+  const live =
+    ledger.flight && ledger.flight.forId === latestId ? ledger.flight : null;
 
   const onBurstComplete = useCallback(() => {
-    setFlight(null);
+    setLedger((current) => (current.flight ? { ...current, flight: null } : current));
   }, []);
 
   // A burst that never reports back (an unmounted card, a dropped frame) must

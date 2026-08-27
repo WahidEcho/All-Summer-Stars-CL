@@ -78,20 +78,32 @@ export const SPRING = {
   reorder: { type: 'spring', stiffness: 300, damping: 34, mass: 1 },
 } as const satisfies Record<string, Transition>;
 
-/** Sequencing offsets for the score-change choreography (design.md screen 03). */
+/**
+ * Sequencing offsets for the score-change choreography (design.md screen 03).
+ *
+ * The sequence used to land inside the design brief's 1–1.5 second band, which
+ * put the `+N` on screen for barely half a second — gone before a head could
+ * turn from the pitch to the wall. The organisers asked for the award itself to
+ * be readable, so the `+N` now owns a full two seconds: pop in, hold, then
+ * travel into the round score, which rolls only once the burst has landed. The
+ * totals, rank and team strip follow the roll as before.
+ */
 export const SCORE_SEQUENCE = {
   /** `+N` appears beside the player. */
   burstIn: 0,
-  /** `+N` travels into the round/total figure. */
-  burstTravel: 0.24,
-  /** The total rolls to its new value. */
-  totalRoll: 0.5,
+  /** `+N` stops holding and starts its travel into the round score. */
+  burstTravel: 1.44,
+  /** How long the `+N` is on screen end to end — the readable hold plus the
+   *  travel. The round score rolls the moment this window closes. */
+  burstShow: 2.0,
+  /** The total rolls to its new value, after the round score has settled. */
+  totalRoll: 2.3,
   /** The rank badge updates. */
-  rankUpdate: 0.82,
+  rankUpdate: 2.6,
   /** The team strip catches up. */
-  teamUpdate: 0.96,
-  /** Whole sequence, seconds. Design brief: "roughly 1–1.5 seconds". */
-  total: 1.3,
+  teamUpdate: 2.75,
+  /** Whole sequence, seconds. The burst's safety net keys off this. */
+  total: 3.0,
 } as const;
 
 /**
