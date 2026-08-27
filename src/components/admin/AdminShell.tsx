@@ -40,6 +40,7 @@ const NAV: NavGroup[] = [
       { href: '/admin/controller', label: 'Scoring controller', tag: 'LIVE' },
       { href: '/admin/display', label: 'Display control' },
       { href: '/admin/challenges', label: 'Challenges' },
+      { href: '/admin/entrance', label: 'Player entrance' },
       { href: '/admin/ceremony', label: 'Ceremony' },
     ],
   },

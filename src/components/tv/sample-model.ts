@@ -969,6 +969,12 @@ export function sampleSceneDefaults(scene: DisplayScene): {
       };
     case 'final_match':
       return { payload: { phase: 'match' }, ceremonyPhase: 'complete' };
+    case 'player_entrance':
+      // The walk-out is worth inspecting mid-reveal, so QA opens on a player
+      // rather than on the welcome frame. `?payload=` is merged *over* these
+      // defaults, so an empty object changes nothing — clear the player with
+      // `?payload={"playerId":null}` to see the welcome frame instead.
+      return { payload: { playerId: playerId('A1') }, ceremonyPhase: 'complete' };
     default:
       return { payload: {}, ceremonyPhase: 'complete' };
   }
@@ -985,6 +991,7 @@ export const SAMPLE_SCENES: readonly DisplayScene[] = [
   'final_match',
   'leaderboard',
   'ceremony',
+  'player_entrance',
 ] as const;
 
 const SCENE_ALIASES: Record<string, DisplayScene> = {
@@ -1006,6 +1013,11 @@ const SCENE_ALIASES: Record<string, DisplayScene> = {
   'final-match': 'final_match',
   board: 'leaderboard',
   standings: 'leaderboard',
+  entrance: 'player_entrance',
+  playerentrance: 'player_entrance',
+  'player-entrance': 'player_entrance',
+  walkout: 'player_entrance',
+  'walk-out': 'player_entrance',
   awards: 'ceremony',
   lineup: 'lineups',
 };

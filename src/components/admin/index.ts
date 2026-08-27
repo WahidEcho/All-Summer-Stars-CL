@@ -38,6 +38,10 @@ export {
   type ToggleProps,
 } from '@/components/admin/Controls';
 export { LoginForm, type LoginFormProps } from '@/components/admin/LoginForm';
+export {
+  PlayerSendCard,
+  type PlayerSendCardProps,
+} from '@/components/admin/PlayerSendCard';
 export { SaveBar, type SaveBarProps } from '@/components/admin/SaveBar';
 export {
   EmptyState,

@@ -109,6 +109,10 @@ export const setLineupSlotSchema = commandBase.extend({
 });
 
 export const displaySceneEnum = z.enum([
+  // Must stay in step with the `display_scene` Postgres enum and the
+  // `DisplayScene` union — a value missing here is rejected before it ever
+  // reaches the database.
+  'auto',
   'holding',
   'lineups',
   'head_to_head',
@@ -118,6 +122,7 @@ export const displaySceneEnum = z.enum([
   'final_match',
   'leaderboard',
   'ceremony',
+  'player_entrance',
 ]);
 
 export const displaySceneSchema = commandBase.extend({

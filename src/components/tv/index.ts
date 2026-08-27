@@ -72,6 +72,7 @@ export { HoldingScene } from '@/components/tv/scenes/HoldingScene';
 export { LeaderboardScene } from '@/components/tv/scenes/LeaderboardScene';
 export { LineupsScene } from '@/components/tv/scenes/LineupsScene';
 export { LiveRoundScene } from '@/components/tv/scenes/LiveRoundScene';
+export { PlayerEntranceScene } from '@/components/tv/scenes/PlayerEntranceScene';
 export { RoundResultScene } from '@/components/tv/scenes/RoundResultScene';
 
 // --- Reusable scene parts -------------------------------------------------
