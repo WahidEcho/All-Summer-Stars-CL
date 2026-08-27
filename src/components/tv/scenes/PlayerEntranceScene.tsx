@@ -59,6 +59,23 @@ const STAGE = { team: 1, photo: 2, name: 3, sparkle: 4 } as const;
 const CARD_W = 600;
 const CARD_H = 748;
 
+/**
+ * A number derived from the whole of a string.
+ *
+ * The scatter was seeded from `runKey.length`, and every player id is a 36
+ * character UUID — so all ten players drew the identical sixteen stars, which
+ * is the one thing the per-player scatter existed to avoid. Summing the
+ * characters is enough to separate them and, being a pure function of the id,
+ * keeps the server and client renders in step.
+ */
+function seedOf(value: string): number {
+  let total = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    total = (total + value.charCodeAt(i) * (i + 1)) % 100_000;
+  }
+  return total;
+}
+
 /** Deterministic pseudo-random in [0,1) — server and client must agree. */
 function noise(seed: number): number {
   const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453123;
@@ -96,7 +113,7 @@ function SparkleRing({ runKey, show }: SparkleRingProps) {
   const motionOn = useMotionScale() === 1;
 
   const stars = useMemo(() => {
-    const seed = runKey.length;
+    const seed = seedOf(runKey);
     return Array.from({ length: 16 }, (_, i) => {
       const n = i + seed;
       // Alternate sides, then push each star clear of the card edge so the
