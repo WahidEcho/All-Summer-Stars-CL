@@ -102,10 +102,17 @@ export function CeremonyScene({ model, payload, ceremonyPhase }: SceneProps) {
   const dayFormat = snapshot.scoring.day?.twoCompetitions === true;
   const dayWinnerRaw = dayFormat ? model.dayScore.winner : null;
   const dayWinner = dayWinnerRaw === 'A' || dayWinnerRaw === 'B' ? dayWinnerRaw : null;
+
+  // A level day is not a shared title under this format — it is a day that has
+  // not been decided yet. One side takes the four skills challenges, the other
+  // takes the 5v5, and the penalty shootout settles it; that is the whole
+  // reason the shootout exists. Reading 1–1 as "the title is shared" told the
+  // room the opposite of the rules, on the one frame nobody misreads.
+  const needsShootout = dayFormat && model.dayScore.needsShootout;
   const drawn = dayWinner
     ? false
     : dayFormat
-      ? model.dayScore.a === model.dayScore.b
+      ? !needsShootout && model.dayScore.a === model.dayScore.b
       : model.a.points === model.b.points;
   const championSides: SideModel[] = dayWinner
     ? [model.side(dayWinner)]
@@ -198,6 +205,7 @@ export function CeremonyScene({ model, payload, ceremonyPhase }: SceneProps) {
         <ClosingFrame
           model={model}
           championSides={championSides}
+          needsShootout={needsShootout}
           drawn={drawn}
           photoHold={photoHold}
         />
@@ -252,6 +260,7 @@ export function CeremonyScene({ model, payload, ceremonyPhase }: SceneProps) {
           model={model}
           sides={championSides}
           drawn={drawn}
+          needsShootout={needsShootout}
           qrUrl={model.qrUrl}
         />
       </SceneFrame>
@@ -509,11 +518,14 @@ function ChampionsFrame({
   model,
   sides,
   drawn,
+  needsShootout = false,
   qrUrl,
 }: {
   model: SceneModel;
   sides: SideModel[];
   drawn: boolean;
+  /** The day stands level and the shootout has not settled it yet. */
+  needsShootout?: boolean;
   qrUrl: string | null;
 }) {
   // A shared title puts two squads on the canvas instead of one, so the whole
@@ -531,7 +543,13 @@ function ChampionsFrame({
       <SceneHeadline
         eyebrow="SWANLAKE FOOTBALL STARS"
         size={shared ? 'lg' : 'xl'}
-        sub={drawn ? 'THE TEAMS FINISH LEVEL — THE TITLE IS SHARED' : daySub(model)}
+        sub={
+          needsShootout
+            ? 'THE DAY STANDS LEVEL 1–1 — PENALTIES DECIDE THE TITLE'
+            : drawn
+              ? 'THE TEAMS FINISH LEVEL — THE TITLE IS SHARED'
+              : daySub(model)
+        }
         className="relative z-10 shrink-0"
       >
         2026 CHAMPIONS
@@ -926,11 +944,14 @@ function ClosingFrame({
   model,
   championSides,
   drawn,
+  needsShootout = false,
   photoHold,
 }: {
   model: SceneModel;
   championSides: SideModel[];
   drawn: boolean;
+  /** The day stands level and the shootout has not settled it yet. */
+  needsShootout?: boolean;
   photoHold: boolean;
 }) {
   const { snapshot } = model;
@@ -942,7 +963,11 @@ function ClosingFrame({
         <EventMark variant="light" width={320} priority title="" />
         <div className="flex flex-col items-center gap-2">
           <span className="u-display text-ink text-[62px] leading-none">
-            {drawn ? 'CHAMPIONS SHARED' : '2026 CHAMPIONS'}
+            {needsShootout
+              ? 'THE DAY IS LEVEL'
+              : drawn
+                ? 'CHAMPIONS SHARED'
+                : '2026 CHAMPIONS'}
           </span>
           <span className="u-label text-aqua-800 text-[19px]">
             {model.venueLabel || 'SWANLAKE NORTH COAST'}

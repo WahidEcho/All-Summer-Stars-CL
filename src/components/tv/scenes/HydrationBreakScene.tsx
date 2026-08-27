@@ -3,6 +3,7 @@
 import { motion } from "motion/react";
 
 import { SceneFrame } from "@/components/tv/SceneFrame";
+import { EventMark } from "@/components/brand";
 import { payloadString, type SceneProps } from "@/components/tv/scene-props";
 import { DURATION, EASE, StatusPill, useMotionScale } from "@/components/ui";
 import { useServerNow } from "@/components/tv/use-server-now";
@@ -65,6 +66,14 @@ export function HydrationBreakScene({ model, payload }: SceneProps) {
       starField="holding"
       sponsors={snapshot.sponsors}
     >
+      {/* The break frame drops the standard header, so the competition would
+          otherwise go unbranded for the two minutes the room spends looking at
+          it — the one stretch of the show with nothing else on screen to say
+          whose event this is. */}
+      <div className="pointer-events-none absolute top-[40px] left-[64px] z-20 w-[320px]">
+        <EventMark variant="light" title="" />
+      </div>
+
       <motion.div
         initial={motionOn ? { opacity: 0, y: 18 } : false}
         animate={{ opacity: 1, y: 0 }}
