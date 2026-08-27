@@ -1,34 +1,23 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState } from 'react';
-import { motion } from 'motion/react';
+import { useMemo } from "react";
+import { motion } from "motion/react";
 
-import { EventMark } from '@/components/brand';
-import { ScoreNumeral, StatusPill, useMotionScale } from '@/components/ui';
-import { SceneFrame } from '@/components/tv/SceneFrame';
-import type { SceneProps } from '@/components/tv/scene-props';
-
-/** Milliseconds until the event's advertised start, or null when unknown. */
-function useCountdown(targetMs: number | null): number | null {
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    if (targetMs === null) return;
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, [targetMs]);
-
-  if (targetMs === null) return null;
-  return Math.max(0, targetMs - now);
-}
+import { EventMark } from "@/components/brand";
+import { ScoreNumeral, StatusPill, useMotionScale } from "@/components/ui";
+import { SceneFrame } from "@/components/tv/SceneFrame";
+import { useServerNow } from "@/components/tv/use-server-now";
+import type { SceneProps } from "@/components/tv/scene-props";
 
 function countdownLabel(ms: number): string {
   const total = Math.floor(ms / 1000);
   const hours = Math.floor(total / 3600);
   const minutes = Math.floor((total % 3600) / 60);
   const seconds = total % 60;
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return hours > 0
+    ? `${hours}:${pad(minutes)}:${pad(seconds)}`
+    : `${pad(minutes)}:${pad(seconds)}`;
 }
 
 /**
@@ -45,14 +34,32 @@ export function HoldingScene({ model }: SceneProps) {
   const { snapshot } = model;
   const event = snapshot.event;
 
+  /**
+   * The advertised kick-off, as an instant.
+   *
+   * `start_time` is a `timestamptz` — a whole instant, which is what the setup
+   * console writes and reads. This used to glue it onto `event_date` as though
+   * it were a bare time of day, producing "2026-08-27T2026-08-27 14:00:00+00":
+   * unparseable, so the countdown resolved to null and simply never appeared.
+   * The toggle in admin said ON and the wall showed nothing, with no error
+   * anywhere to say why.
+   */
   const startMs = useMemo(() => {
-    if (!event.show_countdown || !event.event_date) return null;
-    const time = event.start_time ?? '00:00:00';
-    const parsed = Date.parse(`${event.event_date}T${time}`);
+    if (!event.show_countdown) return null;
+    if (event.start_time) {
+      const parsed = Date.parse(event.start_time);
+      if (!Number.isNaN(parsed)) return parsed;
+    }
+    // No time set: fall back to midnight on the event's own date.
+    if (!event.event_date) return null;
+    const parsed = Date.parse(`${event.event_date}T00:00:00`);
     return Number.isNaN(parsed) ? null : parsed;
   }, [event.show_countdown, event.event_date, event.start_time]);
 
-  const remaining = useCountdown(startMs);
+  // Counted against the server's clock, not the wall's: a display an hour out
+  // would otherwise announce ANY MOMENT to a room with an hour still to wait.
+  const serverNow = useServerNow(snapshot.fetchedAt, { intervalMs: 500 });
+  const remaining = startMs === null ? null : Math.max(0, startMs - serverNow);
 
   return (
     <SceneFrame
@@ -81,7 +88,7 @@ export function HoldingScene({ model }: SceneProps) {
                     duration: 16,
                     times: [0, 0.5, 1],
                     repeat: Infinity,
-                    ease: 'easeInOut',
+                    ease: "easeInOut",
                   },
                 }
               : { duration: 0 }
@@ -106,11 +113,11 @@ export function HoldingScene({ model }: SceneProps) {
           ) : null}
 
           <p className="u-label text-aqua-800 text-[28px]">
-            {model.venueLabel || 'LIVE FROM SWANLAKE NORTH COAST'}
+            {model.venueLabel || "LIVE FROM SWANLAKE NORTH COAST"}
           </p>
 
           <StatusPill
-            label={(event.holding_status || 'STARTING SOON').toUpperCase()}
+            label={(event.holding_status || "STARTING SOON").toUpperCase()}
             tone="accent"
             variant="solid"
             size="lg"
@@ -128,8 +135,8 @@ export function HoldingScene({ model }: SceneProps) {
             className="absolute bottom-0 left-0 flex flex-col items-start gap-2"
           >
             <ScoreNumeral
-              value={remaining > 0 ? countdownLabel(remaining) : 'ANY MOMENT'}
-              label={remaining > 0 ? 'STARTS IN' : 'KICK OFF'}
+              value={remaining > 0 ? countdownLabel(remaining) : "ANY MOMENT"}
+              label={remaining > 0 ? "STARTS IN" : "KICK OFF"}
               size="md"
               variant="clock"
               tone="accent"

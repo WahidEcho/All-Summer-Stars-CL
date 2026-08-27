@@ -1,48 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 
 import { SceneFrame } from "@/components/tv/SceneFrame";
 import { payloadString, type SceneProps } from "@/components/tv/scene-props";
 import { DURATION, EASE, StatusPill, useMotionScale } from "@/components/ui";
+import { useServerNow } from "@/components/tv/use-server-now";
 
 /** What a break runs for when the payload does not say. */
 const DEFAULT_BREAK_MS = 120_000;
-
-/**
- * Server time, as well as this screen can know it.
- *
- * The clock on a venue display is not to be trusted — it has been unplugged
- * since the dress run and nobody set it — and a two-minute countdown is exactly
- * the thing that exposes it: a machine ninety seconds out would show three and
- * a half minutes remaining, or none at all. The snapshot carries `fetchedAt`,
- * written by the server, so client time measured *since that snapshot arrived*
- * reads in the server's frame. Only the clock's rate has to be right, never its
- * setting.
- */
-function useServerNow(fetchedAt: number): number {
-  const [anchor, setAnchor] = useState<{
-    server: number;
-    client: number;
-  } | null>(null);
-  const [now, setNow] = useState(() => fetchedAt);
-
-  useEffect(() => {
-    if (anchor?.server === fetchedAt) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setAnchor({ server: fetchedAt, client: Date.now() });
-  }, [fetchedAt, anchor]);
-
-  useEffect(() => {
-    // Four ticks a second: enough that the seconds digit never visibly stalls,
-    // cheap enough to run for the whole break.
-    const id = window.setInterval(() => setNow(Date.now()), 250);
-    return () => window.clearInterval(id);
-  }, []);
-
-  return anchor ? anchor.server + (now - anchor.client) : fetchedAt;
-}
 
 /** `M:SS`, floor-free so the last second is shown as 0:01 rather than 0:00. */
 function clock(ms: number): string {
@@ -128,7 +94,7 @@ export function HydrationBreakScene({ model, payload }: SceneProps) {
           // A literal tint of the fill rather than a palette token: the light
           // tones in the set land near-white on this field, which is what left
           // the track invisible and the fill looking like a stray rule.
-          style={{ background: 'rgba(61, 117, 126, 0.22)' }}
+          style={{ background: "rgba(61, 117, 126, 0.22)" }}
         >
           <div
             className="bg-aqua-700 h-full rounded-pill"
