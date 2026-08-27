@@ -453,6 +453,34 @@ export function computeDayScore(
 }
 
 /**
+ * The minute a half's clock starts from.
+ *
+ * The match clock counts up across the whole game, and each half is its own
+ * timer row, so a half has to be seeded or the board drops back to zero after
+ * the interval. Seeding from the time actually banked was wrong in the one
+ * direction that shows: blow the first half up early at 12:00 and the second
+ * began at 12:00, so a match played to the whistle finished reading 32:00.
+ * Football does not work that way — the second half starts at the half-time
+ * mark whenever it is actually kicked off.
+ *
+ * Taking the later of the nominal mark and the banked time also means a half
+ * that ran long into stoppage is never wound backwards, which is the other way
+ * to get this wrong.
+ */
+export function halfStartMs(input: {
+  half: number;
+  halves: number;
+  halfDurationMs: number;
+  bankedMs: number;
+  goldenGoal?: boolean;
+}): number {
+  const nominal = input.goldenGoal
+    ? input.halfDurationMs * input.halves
+    : input.halfDurationMs * Math.max(0, input.half - 1);
+  return Math.max(nominal, input.bankedMs);
+}
+
+/**
  * Team totals across the four skills challenges alone — Competition 1's
  * scoreboard. Built from round scores so match goal points can never leak in.
  */

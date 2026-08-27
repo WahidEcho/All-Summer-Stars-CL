@@ -12,6 +12,7 @@
 
 import {
   computeMatchScore,
+  halfStartMs,
   ledgerEntriesForGoal,
   type PendingLedgerEntry,
 } from '@/lib/scoring/engine';
@@ -35,6 +36,7 @@ import {
   bankedBeforeSegment,
   endTimerRow,
   ensureTimerRow,
+  matchTimers,
   pauseTimerRow,
   startTimerRow,
 } from '@/lib/actions/_timers';
@@ -375,11 +377,25 @@ export async function startHalf(input: HalfCommandInput): Promise<ActionResult<H
       });
 
       // 00:00→20:00, halftime, then 20:00→40:00. The second half is a separate
-      // timer row, so it has to be seeded with the time the first half banked
-      // or the board would drop back to zero after the interval. `resume`
-      // protects a half that was paused mid-play from being wound back by a
-      // second tap on the start button.
-      const carryMs = await bankedBeforeSegment(db, match.id, value.half);
+      // timer row, so it has to be seeded or the board would drop back to zero
+      // after the interval. `resume` protects a half that was paused mid-play
+      // from being wound back by a second tap on the start button.
+      //
+      // Seeded from whichever is LATER: the minute this half nominally starts,
+      // or the time actually banked. Banked alone was wrong in the direction
+      // that matters — blow the first half up early at 12:00 and the second
+      // began at 12:00, so a match played to the whistle finished reading
+      // 32:00 and every half after an early one was mis-stamped. Football does
+      // not work that way: the second half starts at the half-time mark
+      // whenever it is actually kicked off. Taking the later of the two also
+      // means a half that ran long into stoppage is never wound backwards.
+      const carryMs = halfStartMs({
+        half: value.half,
+        halves: config.halves,
+        halfDurationMs: config.halfDurationMs,
+        bankedMs: await bankedBeforeSegment(db, match.id, value.half),
+        goldenGoal: isGoldenGoal,
+      });
       const running = await startTimerRow(db, timer, { fromMs: carryMs, resume: true });
 
       if (challenge.status !== 'live') {
@@ -541,6 +557,20 @@ export async function endMatch(
             actorId: ctx.actor.id,
           },
         );
+      }
+
+      // Whatever clock this match was running, stop it here. `endHalf` stops
+      // the half it blew up, but the match can be ended from states that leave
+      // a clock live — most visibly golden goal, whose timer is open-ended and
+      // is never blown up by a half whistle. Nothing else ever stopped it, so
+      // the wall and the controller went on counting upward after full time,
+      // through the ceremony, for the rest of the night. A timer row left in
+      // `running` ticks on every surface that reads it, because the clock is
+      // derived from the row rather than pushed to the screens.
+      for (const row of await matchTimers(db, match.id)) {
+        if (row.state === 'running' || row.state === 'paused') {
+          await endTimerRow(db, row);
+        }
       }
 
       const now = new Date().toISOString();
