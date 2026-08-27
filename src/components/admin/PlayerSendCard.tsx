@@ -14,6 +14,13 @@
  *
  * Presentation only. Arming, disarming and sending are the page's business;
  * this is handed `armed` and calls `onPress`.
+ *
+ * `sent` is the quiet one that matters most. Ten players come through a gate
+ * in a couple of minutes and the console's only other state is who is on the
+ * wall *now* — so the moment the next player goes up, the one before becomes
+ * indistinguishable from the eight who have not walked yet. That is how a
+ * player gets sent twice, or missed entirely. A card that has had its moment
+ * says so and steps back.
  */
 
 import { cn } from '@/lib/cn';
@@ -27,6 +34,10 @@ export interface PlayerSendCardProps {
   armed: boolean;
   /** This player's card is the one currently on the wall. */
   onTv: boolean;
+  /** This player has already walked out under this console's watch. */
+  sent: boolean;
+  /** This player's last send failed — say so on the card, not only in a banner. */
+  failed: boolean;
   disabled: boolean;
   onPress: () => void;
 }
@@ -36,10 +47,15 @@ export function PlayerSendCard({
   team,
   armed,
   onTv,
+  sent,
+  failed,
   disabled,
   onPress,
 }: PlayerSendCardProps) {
   const name = displayNameOf(player) || 'Unnamed player';
+  // Done, and not the one on the wall: recede, but stay pressable — a player
+  // who has to be shown again is a normal thing, not an error to recover from.
+  const done = sent && !onTv;
 
   return (
     <button
@@ -47,13 +63,20 @@ export function PlayerSendCard({
       onClick={onPress}
       disabled={disabled}
       aria-pressed={armed}
-      aria-label={armed ? `Confirm sending ${name} to the TV` : `Send ${name} to the TV`}
+      aria-label={
+        armed
+          ? `Confirm sending ${name} to the TV`
+          : `${done ? 'Send again' : 'Send'} ${name} to the TV${done ? ' — already walked out' : ''}`
+      }
       style={teamRowAccentVars(team)}
       className={cn(
         'group focus-visible:ring-focus relative flex flex-col overflow-hidden rounded-lg text-left ring-1 transition focus-visible:ring-4 focus-visible:outline-none',
         armed
           ? 'ring-live shadow-raised ring-4'
-          : 'ring-border-subtle hover:ring-aqua-400 hover:shadow-card',
+          : failed
+            ? 'ring-live ring-2'
+            : 'ring-border-subtle hover:ring-aqua-400 hover:shadow-card',
+        done && !armed && 'opacity-45 saturate-50',
         disabled && 'cursor-not-allowed opacity-60',
       )}
     >
@@ -63,6 +86,14 @@ export function PlayerSendCard({
         {onTv ? (
           <span className="absolute top-2 left-2 z-10">
             <StatusPill label="ON TV" tone="live" size="sm" pulse />
+          </span>
+        ) : failed ? (
+          <span className="absolute top-2 left-2 z-10">
+            <StatusPill label="SEND FAILED" tone="live" size="sm" />
+          </span>
+        ) : done ? (
+          <span className="absolute top-2 left-2 z-10">
+            <StatusPill label="✓ WALKED" tone="winner" size="sm" />
           </span>
         ) : null}
       </div>

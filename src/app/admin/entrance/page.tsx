@@ -58,6 +58,8 @@ interface SquadPanelProps {
   players: PlayerRow[];
   armedId: string | null;
   liveId: string | null;
+  sentIds: ReadonlySet<string>;
+  failedId: string | null;
   disabled: boolean;
   onPress: (player: PlayerRow) => void;
 }
@@ -68,14 +70,17 @@ function SquadPanel({
   players,
   armedId,
   liveId,
+  sentIds,
+  failedId,
   disabled,
   onPress,
 }: SquadPanelProps) {
+  const walked = players.filter((p) => sentIds.has(p.id)).length;
   return (
     <Panel
       eyebrow={`TEAM ${code}`}
       title={team?.name ?? `Team ${code}`}
-      description={`${players.length} ${players.length === 1 ? 'player' : 'players'} in walk-out order.`}
+      description={`${walked} of ${players.length} walked out.`}
       actions={
         <span
           aria-hidden
@@ -105,6 +110,8 @@ function SquadPanel({
               team={team}
               armed={armedId === player.id}
               onTv={liveId === player.id}
+              sent={sentIds.has(player.id)}
+              failed={failedId === player.id}
               disabled={disabled}
               onPress={() => onPress(player)}
             />
@@ -128,6 +135,17 @@ export default function PlayerEntrancePage() {
   } = useDisplayState();
 
   const [armedId, setArmedId] = useState<string | null>(null);
+  /**
+   * Who has already walked, this sitting.
+   *
+   * Deliberately console-local rather than stored: it answers "have I sent
+   * this one yet", which is a question about the operator's own pass down the
+   * gate, not a fact about the event. A reload starts the count again, which is
+   * the honest answer — nobody else's console knows what this one has sent.
+   */
+  const [sentIds, setSentIds] = useState<ReadonlySet<string>>(() => new Set());
+  /** The player whose last send failed, so the card itself can say so. */
+  const [failedId, setFailedId] = useState<string | null>(null);
   const disarmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearDisarm = useCallback(() => {
@@ -172,7 +190,8 @@ export default function PlayerEntrancePage() {
     async (player: PlayerRow): Promise<void> => {
       clearDisarm();
       setArmedId(null);
-      await runner.run(
+      setFailedId(null);
+      const result = await runner.run(
         () =>
           setDisplayScene({
             idempotencyKey: newIdempotencyKey('entrance-send'),
@@ -182,6 +201,18 @@ export default function PlayerEntrancePage() {
           }),
         { success: `${displayNameOf(player) || 'That player'} is on the wall.` },
       );
+      // A failed send used to leave the card exactly as it was, which on a
+      // scrolled tablet is indistinguishable from never having pressed it —
+      // the one banner is off-screen above the grid. The card now carries it.
+      if (result.ok) {
+        setSentIds((current) => {
+          const next = new Set(current);
+          next.add(player.id);
+          return next;
+        });
+      } else {
+        setFailedId(player.id);
+      }
       void refreshDisplay();
     },
     [clearDisarm, deviceId, runner, refreshDisplay],
@@ -217,6 +248,30 @@ export default function PlayerEntrancePage() {
     void refreshDisplay();
   }, [clearDisarm, deviceId, runner, refreshDisplay]);
 
+  /**
+   * Hand the wall to the director when the last player is in.
+   *
+   * The walk-out ends and the show starts, and those are the same moment. The
+   * only exit used to be the holding screen, so resuming meant leaving this
+   * console for the display console mid-gate — this is the one press that ends
+   * the sequence the way it actually ends.
+   */
+  const backToAuto = useCallback(async (): Promise<void> => {
+    clearDisarm();
+    setArmedId(null);
+    await runner.run(
+      () =>
+        setDisplayScene({
+          idempotencyKey: newIdempotencyKey('entrance-auto'),
+          deviceId,
+          scene: 'auto',
+          payload: {},
+        }),
+      { success: 'AUTO is on air — the wall follows the show from here.' },
+    );
+    void refreshDisplay();
+  }, [clearDisarm, deviceId, runner, refreshDisplay]);
+
   const backToHolding = useCallback(async (): Promise<void> => {
     clearDisarm();
     setArmedId(null);
@@ -247,6 +302,15 @@ export default function PlayerEntrancePage() {
         description="Tap a player once to arm their card, then tap again to send the walk-out reveal straight to the wall. The card holds until the next player is sent."
         actions={
           <ButtonRow>
+            <AdminButton
+              variant="primary"
+              size="sm"
+              busy={runner.pending}
+              onClick={() => void backToAuto()}
+              title="Ends the walk-out and hands the wall to the director."
+            >
+              Hand back to AUTO
+            </AdminButton>
             <AdminButton
               variant="secondary"
               onClick={() => void showWelcome()}
@@ -315,6 +379,8 @@ export default function PlayerEntrancePage() {
               players={squads[code]}
               armedId={armedId}
               liveId={liveId}
+              sentIds={sentIds}
+              failedId={failedId}
               disabled={runner.pending}
               onPress={press}
             />
