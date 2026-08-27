@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 import {
   firstNameScale,
+  introNameParts,
   nameParts,
   surnameScale,
   type PlayerLike,
@@ -23,21 +24,23 @@ export interface PlayerNameLockupProps {
   /** Render the first name on its own smaller line. Default true. */
   showFirstName?: boolean;
   /**
-   * Set both names at one size, on lines that cannot collide.
+   * Set the name as an introduction rather than a callout.
    *
    * The default lockup is a small first name tucked over an oversized surname,
-   * and it earns that everywhere the surname is the thing being called — a
-   * result card, a leaderboard row. The walk-out is the one place it is wrong:
-   * the player is being introduced by their whole name to a crowd who may not
-   * know either half, so neither half should be the footnote.
+   * and it earns that everywhere the surname is the thing being *called* — a
+   * result card, a leaderboard row. A walk-out is the other thing: the player
+   * is being introduced by their whole name to a crowd who may not know either
+   * half, so neither half should be the footnote, and the name divides the way
+   * an introduction does — the given name, then the family name entire, so
+   * "Esam El Hadary" reads ESAM / EL HADARY rather than stranding "El".
    *
-   * It also fixes a collision. The stacked form leans on `--leading-slab`
+   * It also settles a collision. The stacked form leans on `--leading-slab`
    * (0.84), a line box deliberately shorter than the glyphs it holds, which is
    * what lets an oversized surname sit tight under its first name. At walk-out
-   * size those glyphs climbed into the line above and the two names overlapped.
-   * Equal names are set on their own full line boxes instead.
+   * size those glyphs climbed into the line above and the names overlapped.
+   * Both names are set here on their own full line boxes instead.
    */
-  equalNames?: boolean;
+  introduction?: boolean;
   className?: string;
 }
 
@@ -80,10 +83,10 @@ export function PlayerNameLockup({
   sub,
   tone = 'ink',
   showFirstName = true,
-  equalNames = false,
+  introduction = false,
   className,
 }: PlayerNameLockupProps) {
-  const { first, last, full } = nameParts(player);
+  const { first, last, full } = introduction ? introNameParts(player) : nameParts(player);
   const skin = TONE[tone];
 
   // One size for both, taken from whichever name is longer so the wider of the
@@ -103,7 +106,7 @@ export function PlayerNameLockup({
             'u-label text-[0.24em]',
             // The number needs room of its own when the names below it are set
             // at full size, or it reads as part of the first name.
-            equalNames ? 'mb-[0.5em]' : 'mb-[0.22em]',
+            introduction ? 'mb-[0.5em]' : 'mb-[0.22em]',
             skin.small,
           )}
         >
@@ -115,11 +118,11 @@ export function PlayerNameLockup({
         <span
           className={cn(
             'u-display tracking-[0.01em]',
-            equalNames ? 'leading-[1.02] [overflow-wrap:anywhere]' : 'leading-[0.95]',
+            introduction ? 'leading-[1.02] [overflow-wrap:anywhere]' : 'leading-[0.95]',
             skin.small,
           )}
           style={{
-            fontSize: equalNames
+            fontSize: introduction
               ? `${pairScale.toFixed(3)}em`
               : `${(0.34 * firstNameScale(first)).toFixed(3)}em`,
           }}
@@ -131,11 +134,11 @@ export function PlayerNameLockup({
       <span
         className={cn(
           'u-display [overflow-wrap:anywhere]',
-          equalNames ? 'leading-[1.02]' : 'leading-[var(--leading-slab)]',
+          introduction ? 'leading-[1.02]' : 'leading-[var(--leading-slab)]',
           skin.name,
         )}
         style={{
-          fontSize: `${(equalNames ? pairScale : surnameScale(last)).toFixed(3)}em`,
+          fontSize: `${(introduction ? pairScale : surnameScale(last)).toFixed(3)}em`,
         }}
       >
         {last}

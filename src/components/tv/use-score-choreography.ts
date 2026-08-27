@@ -15,9 +15,9 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useReducedMotion } from 'motion/react';
 
 import { SCORE_SEQUENCE } from '@/components/ui';
+import { useReducedMotionSafe } from '@/components/ui/motion-tokens';
 import type { AttemptRow } from '@/lib/types';
 
 export interface BurstedScore {
@@ -83,7 +83,7 @@ export function useBurstedScore(
   attempts: ReadonlyArray<AttemptRow>,
   score: number,
 ): BurstedScore {
-  const reduced = useReducedMotion();
+  const reduced = useReducedMotionSafe();
 
   const latest = attempts.length > 0 ? attempts[attempts.length - 1] : null;
   const latestId = latest?.id ?? null;
@@ -189,7 +189,7 @@ export function useBurstedScore(
  * player's own figures, which is the last step of the sequence.
  */
 export function useLaggedNumber(value: number, delaySeconds: number): number {
-  const reduced = useReducedMotion();
+  const reduced = useReducedMotionSafe();
   const [shown, setShown] = useState(value);
 
   useEffect(() => {
@@ -253,7 +253,7 @@ export function useTimedSequence<T extends string>(
   options: { enabled?: boolean } = {},
 ): T | null {
   const enabled = options.enabled ?? true;
-  const reduced = useReducedMotion();
+  const reduced = useReducedMotionSafe();
   const running = enabled && key !== null && steps.length > 0;
 
   // Like `useRevealStage`, the progress carries the run it belongs to, so a new

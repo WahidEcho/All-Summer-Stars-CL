@@ -77,6 +77,8 @@ export {
   transitionToken,
   useDuration,
   useMotionScale,
+  useReducedMotionSafe,
+  AlwaysAnimateContext,
   useTransitionToken,
   type DurationToken,
   type EaseToken,

@@ -1,18 +1,22 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
-import { EventMark } from '@/components/brand';
-import { useDisplayState, useEventSnapshot } from '@/lib/hooks';
-import type { EventSnapshot } from '@/lib/data/snapshot';
-import type { DisplayScene, DisplayStateRow } from '@/lib/types';
-import { BroadcastStage } from '@/components/tv/BroadcastStage';
-import { SceneFrame } from '@/components/tv/SceneFrame';
-import { SceneRouter } from '@/components/tv/SceneRouter';
-import { LoadingDots } from '@/components/tv/parts/LoadingDots';
-import { buildSceneModel } from '@/components/tv/scene-model';
-import { resolveCeremonyPhase, type CeremonyPhase } from '@/components/tv/constants';
-import { useAutoDirector } from '@/components/tv/use-auto-director';
+import { EventMark } from "@/components/brand";
+import { AlwaysAnimateContext } from "@/components/ui";
+import { useDisplayState, useEventSnapshot } from "@/lib/hooks";
+import type { EventSnapshot } from "@/lib/data/snapshot";
+import type { DisplayScene, DisplayStateRow } from "@/lib/types";
+import { BroadcastStage } from "@/components/tv/BroadcastStage";
+import { SceneFrame } from "@/components/tv/SceneFrame";
+import { SceneRouter } from "@/components/tv/SceneRouter";
+import { LoadingDots } from "@/components/tv/parts/LoadingDots";
+import { buildSceneModel } from "@/components/tv/scene-model";
+import {
+  resolveCeremonyPhase,
+  type CeremonyPhase,
+} from "@/components/tv/constants";
+import { useAutoDirector } from "@/components/tv/use-auto-director";
 
 /** A forced, database-free rendering — the `?scene=` QA route. */
 export interface TvSampleOverride {
@@ -54,9 +58,12 @@ export interface TvSurfaceProps {
 const NEVER_CHANGES = () => () => {};
 
 /** Read a pinned entity id out of an untyped display payload. */
-function readId(payload: Record<string, unknown>, key: string): string | undefined {
+function readId(
+  payload: Record<string, unknown>,
+  key: string,
+): string | undefined {
   const value = payload[key];
-  return typeof value === 'string' && value.length > 0 ? value : undefined;
+  return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 /**
@@ -85,14 +92,14 @@ function useHydrated(): boolean {
  */
 function useScreenWakeLock(enabled: boolean): void {
   useEffect(() => {
-    if (!enabled || typeof navigator === 'undefined') return;
+    if (!enabled || typeof navigator === "undefined") return;
 
     interface WakeLockSentinelLike {
       released: boolean;
       release: () => Promise<void>;
     }
     const nav = navigator as Navigator & {
-      wakeLock?: { request: (type: 'screen') => Promise<WakeLockSentinelLike> };
+      wakeLock?: { request: (type: "screen") => Promise<WakeLockSentinelLike> };
     };
     const wakeLock = nav.wakeLock;
     if (!wakeLock) return;
@@ -103,7 +110,7 @@ function useScreenWakeLock(enabled: boolean): void {
     const acquire = async () => {
       if (cancelled || (sentinel && !sentinel.released)) return;
       try {
-        const next = await wakeLock.request('screen');
+        const next = await wakeLock.request("screen");
         if (cancelled) {
           void next.release();
           return;
@@ -117,13 +124,13 @@ function useScreenWakeLock(enabled: boolean): void {
     void acquire();
 
     const onVisible = () => {
-      if (document.visibilityState === 'visible') void acquire();
+      if (document.visibilityState === "visible") void acquire();
     };
-    document.addEventListener('visibilitychange', onVisible);
+    document.addEventListener("visibilitychange", onVisible);
 
     return () => {
       cancelled = true;
-      document.removeEventListener('visibilitychange', onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
       if (sentinel && !sentinel.released) void sentinel.release();
     };
   }, [enabled]);
@@ -187,20 +194,28 @@ export function TvSurface({
   // the snapshot loads. Without it the wall can only ever show whatever the
   // auto-detection considers "current", which strands it on a finished
   // challenge the moment the next one starts.
-  const { programScene, programPayload, previewScene, previewPayload, ceremonyPhase } =
-    useDisplayState({ initial: initialDisplay, enabled: live, slug });
+  const {
+    programScene,
+    programPayload,
+    previewScene,
+    previewPayload,
+    ceremonyPhase,
+  } = useDisplayState({ initial: initialDisplay, enabled: live, slug });
 
-  const activePayload = preview && previewScene ? previewPayload : programPayload;
-  const activeSceneName: DisplayScene = preview ? (previewScene ?? programScene) : programScene;
+  const activePayload =
+    preview && previewScene ? previewPayload : programPayload;
+  const activeSceneName: DisplayScene = preview
+    ? (previewScene ?? programScene)
+    : programScene;
 
   // Scene AUTO: the wall follows the scoring controller by itself. The
   // director needs a snapshot before it can speak, so the first client render
   // may briefly use the operator payload's pins; the director's own pins take
   // over on the next pass and the snapshot re-reads for them.
-  const autoActive = live && activeSceneName === 'auto';
+  const autoActive = live && activeSceneName === "auto";
 
-  const pinnedChallengeId = readId(activePayload, 'challengeId');
-  const pinnedRoundId = readId(activePayload, 'roundId');
+  const pinnedChallengeId = readId(activePayload, "challengeId");
+  const pinnedRoundId = readId(activePayload, "roundId");
 
   const [directorPins, setDirectorPins] = useState<{
     challengeId?: string;
@@ -230,13 +245,14 @@ export function TvSurface({
   useEffect(() => {
     if (!autoActive) return;
     const next = {
-      challengeId: readId(directed?.payload ?? {}, 'challengeId'),
-      roundId: readId(directed?.payload ?? {}, 'roundId'),
+      challengeId: readId(directed?.payload ?? {}, "challengeId"),
+      roundId: readId(directed?.payload ?? {}, "roundId"),
     };
     // The pins mirror the director's output; the equality guard stops cascades.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setDirectorPins((current) =>
-      current.challengeId === next.challengeId && current.roundId === next.roundId
+      current.challengeId === next.challengeId &&
+      current.roundId === next.roundId
         ? current
         : next,
     );
@@ -247,10 +263,10 @@ export function TvSurface({
   // Hide the pointer on the program output only. The operator preview is a
   // surface someone actually clicks around in.
   useEffect(() => {
-    if (preview || typeof document === 'undefined') return;
+    if (preview || typeof document === "undefined") return;
     const root = document.documentElement;
     const previous = root.style.cursor;
-    root.style.cursor = 'none';
+    root.style.cursor = "none";
     return () => {
       root.style.cursor = previous;
     };
@@ -289,32 +305,38 @@ export function TvSurface({
     : (ceremonyPhaseOverride ?? resolveCeremonyPhase(ceremonyPhase));
 
   return (
-    <BroadcastStage
-      className={preview ? undefined : 'cursor-none'}
-      matteClassName="bg-ink"
-    >
-      {hydrated && model ? (
-        <SceneRouter
-          model={model}
-          payload={payload}
-          ceremonyPhase={phase}
-          scene={scene}
-          preview={preview}
-        />
-      ) : (
-        <StandbySlate />
-      )}
-      {/* Which build this wall is running. Debugging the display otherwise
+    // The wall always animates. It is not a page anyone browses: it is the
+    // show, on a venue machine whose accessibility settings nobody chose, and
+    // the choreography is the product. Flip this to `false` to hand the
+    // preference back. Surfaces people open on their own devices are untouched.
+    <AlwaysAnimateContext value={true}>
+      <BroadcastStage
+        className={preview ? undefined : "cursor-none"}
+        matteClassName="bg-ink"
+      >
+        {hydrated && model ? (
+          <SceneRouter
+            model={model}
+            payload={payload}
+            ceremonyPhase={phase}
+            scene={scene}
+            preview={preview}
+          />
+        ) : (
+          <StandbySlate />
+        )}
+        {/* Which build this wall is running. Debugging the display otherwise
           means guessing whether a refresh actually picked up a deploy —
           it demonstrably doesn't always. Faint, corner, out of the show. */}
-      <div
-        aria-hidden
-        data-build={process.env.NEXT_PUBLIC_BUILD_SHA}
-        className="text-ink/25 pointer-events-none absolute right-2 bottom-1 z-50 font-mono text-[11px]"
-      >
-        {process.env.NEXT_PUBLIC_BUILD_SHA}
-      </div>
-    </BroadcastStage>
+        <div
+          aria-hidden
+          data-build={process.env.NEXT_PUBLIC_BUILD_SHA}
+          className="text-ink/25 pointer-events-none absolute right-2 bottom-1 z-50 font-mono text-[11px]"
+        >
+          {process.env.NEXT_PUBLIC_BUILD_SHA}
+        </div>
+      </BroadcastStage>
+    </AlwaysAnimateContext>
   );
 }
 

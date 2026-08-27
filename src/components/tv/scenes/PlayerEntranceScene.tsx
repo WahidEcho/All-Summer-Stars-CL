@@ -257,7 +257,7 @@ function EntranceCard({ player, side, stage }: EntranceCardProps) {
             size="lg"
             align="center"
             tone="team"
-            equalNames
+            introduction
             eyebrow={
               player.jersey_number != null ? `NO. ${player.jersey_number}` : undefined
             }

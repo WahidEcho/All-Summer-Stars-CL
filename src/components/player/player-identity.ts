@@ -49,6 +49,25 @@ export function nameParts(player: PlayerLike | null | undefined): NameParts {
   return { first: words.slice(0, -1).join(' '), last: words[words.length - 1], full };
 }
 
+/**
+ * The same name, split for an introduction rather than a callout.
+ *
+ * `nameParts` treats the LAST word as the surname, which is right everywhere a
+ * player is being *called* — a result card, a leaderboard row — because the
+ * last word is what a commentator says. For a walk-out it is wrong: "Esam El
+ * Hadary" is introduced as Esam, of the El Hadary family, and splitting at the
+ * last word strands "El" on the given-name line.
+ *
+ * So this splits at the FIRST space instead: the given name, then everything
+ * that follows as one family name. Two-word names are identical either way.
+ */
+export function introNameParts(player: PlayerLike | null | undefined): NameParts {
+  const full = displayNameOf(player);
+  const words = full.split(/\s+/).filter(Boolean);
+  if (words.length <= 1) return { first: '', last: words[0] ?? '', full };
+  return { first: words[0], last: words.slice(1).join(' '), full };
+}
+
 /** Up to two initials, for the photo-less fallback. Never empty. */
 export function initialsOf(player: PlayerLike | null | undefined): string {
   const full = displayNameOf(player);

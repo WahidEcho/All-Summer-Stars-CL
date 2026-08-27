@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { animate, useReducedMotion } from 'motion/react';
+import { animate } from 'motion/react';
+
+import { useReducedMotionSafe } from '@/components/ui/motion-tokens';
 
 import { cn } from '@/lib/cn';
 import { DURATION, EASE, type EaseToken } from '@/components/ui/motion-tokens';
@@ -66,7 +68,7 @@ export function AnimatedNumber({
   onSettled,
   className,
 }: AnimatedNumberProps) {
-  const reduced = useReducedMotion();
+  const reduced = useReducedMotionSafe();
   const [rolling, setRolling] = useState(value);
   const previous = useRef(value);
   const rolled = useRef(value);

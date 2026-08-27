@@ -13,6 +13,7 @@
  * sequencing and the Web Animations API.
  */
 
+import { createContext, useContext, useSyncExternalStore } from 'react';
 import { useReducedMotion } from 'motion/react';
 import type { Easing, Transition } from 'motion/react';
 
@@ -106,6 +107,45 @@ export const SCORE_SEQUENCE = {
   total: 3.0,
 } as const;
 
+const NEVER_CHANGES = () => () => {};
+
+/**
+ * True inside a surface that animates regardless of the machine's setting.
+ *
+ * The broadcast wall is not a page anybody browses. It is the show, driven by a
+ * venue PC nobody chose the accessibility settings on, and its choreography is
+ * the product: a reveal that does not reveal is a fault, not an accommodation.
+ * Surfaces real people open on their own devices — the public site, the
+ * consoles — keep honouring the preference, which is why this is a context
+ * rather than a build flag.
+ */
+export const AlwaysAnimateContext = createContext(false);
+
+/**
+ * Does this surface reduce motion?
+ *
+ * Wraps the raw preference for two reasons. The wall overrides it outright, per
+ * the context above. And the raw hook is not safe to branch on while rendering
+ * on the server: `useReducedMotion()` returns undefined there but reads the
+ * media query synchronously on the very first client render, so a tree that
+ * branches on it can render one shape on the server and a different one during
+ * hydration. React answers an element-count mismatch by discarding the tree and
+ * re-rendering the root — a full repaint of the wall, at load, in front of the
+ * room. Reporting "not reduced" until after hydration makes the two agree, and
+ * the preference still lands a frame later for anyone who set it.
+ */
+export function useReducedMotionSafe(): boolean {
+  const alwaysAnimate = useContext(AlwaysAnimateContext);
+  const preference = useReducedMotion();
+  const hydrated = useSyncExternalStore(
+    NEVER_CHANGES,
+    () => true,
+    () => false,
+  );
+  if (alwaysAnimate) return false;
+  return hydrated ? preference === true : false;
+}
+
 /**
  * `1` normally, `0` when the viewer asked for reduced motion.
  *
@@ -115,7 +155,7 @@ export const SCORE_SEQUENCE = {
  * the markup the server produced.
  */
 export function useMotionScale(): 0 | 1 {
-  return useReducedMotion() ? 0 : 1;
+  return useReducedMotionSafe() ? 0 : 1;
 }
 
 /**
@@ -123,7 +163,7 @@ export function useMotionScale(): 0 | 1 {
  * State still changes instantly — only the travel is removed.
  */
 export function useDuration(seconds: number): number {
-  return useReducedMotion() ? 0.001 : seconds;
+  return useReducedMotionSafe() ? 0.001 : seconds;
 }
 
 /**

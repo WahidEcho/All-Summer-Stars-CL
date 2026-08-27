@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
+
+import { useReducedMotionSafe } from '@/components/ui/motion-tokens';
 
 import type { SponsorRow } from '@/lib/types';
 import { cn } from '@/lib/cn';
@@ -116,7 +118,7 @@ export function SponsorTicker({
   crossfadeSeconds = 4,
   className,
 }: SponsorTickerProps) {
-  const reduced = useReducedMotion();
+  const reduced = useReducedMotionSafe();
   const entries = toEntries(sponsors);
   const nominalLogo = logoHeight ?? Math.round(height * 0.6);
 

@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useReducedMotion } from 'motion/react';
+
+import { useReducedMotionSafe } from '@/components/ui/motion-tokens';
 
 /**
  * A monotonically increasing stage counter driven by a list of millisecond
@@ -18,7 +19,7 @@ import { useReducedMotion } from 'motion/react';
  * three seconds of travel.
  */
 export function useRevealStage(marks: readonly number[], key: string | null): number {
-  const reduced = useReducedMotion();
+  const reduced = useReducedMotionSafe();
 
   // The stage is stored *with* the key it belongs to, so a new round reads as
   // stage 0 on the very first render rather than after an effect has run. A

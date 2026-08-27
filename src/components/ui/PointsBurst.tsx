@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 
 import { cn } from '@/lib/cn';
-import { EASE, SCORE_SEQUENCE } from '@/components/ui/motion-tokens';
+import { EASE, SCORE_SEQUENCE, useReducedMotionSafe } from '@/components/ui/motion-tokens';
 
 export type PointsBurstSize = 'sm' | 'md' | 'lg' | 'xl';
 export type PointsBurstTone = 'accent' | 'winner' | 'live' | 'ink' | 'team';
@@ -82,7 +82,7 @@ export function PointsBurst({
   label,
   className,
 }: PointsBurstProps) {
-  const reduced = useReducedMotion();
+  const reduced = useReducedMotionSafe();
   const visible = value != null && Number.isFinite(value);
   const negative = visible && (value as number) < 0;
   const resolvedTone: PointsBurstTone = tone ?? (negative ? 'live' : 'accent');

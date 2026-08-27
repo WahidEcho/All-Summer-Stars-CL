@@ -79,6 +79,7 @@ export {
   initialsOf,
   isRanked,
   nameParts,
+  introNameParts,
   portraitSrc,
   rankOf,
   sizedPortraitSrc,
