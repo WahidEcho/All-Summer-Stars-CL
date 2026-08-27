@@ -236,6 +236,26 @@ export const scoringConfigSchema = z.object({
     pointsPerScoredAttempt: z.number(),
     winnerPoints: z.number(),
   }),
+  /**
+   * The two-competition day.
+   *
+   * Absent from this schema until now, and zod strips what it does not
+   * declare — so the first Publish on the scoring console silently deleted the
+   * whole block from the new profile version. That switches off golden goal
+   * and drops `openShootout` back to its pre-format branch, where a shootout
+   * needs a DRAWN match rather than a level day: the deciding shootout of the
+   * format becomes unreachable, and nothing anywhere reports a problem.
+   * Optional, because profiles written before the format existed have no block
+   * and must keep loading.
+   */
+  day: z
+    .object({
+      twoCompetitions: z.boolean(),
+      goldenGoal: z.boolean(),
+      goldenGoalRestMinutes: z.number().int().min(0).max(60),
+      shootoutDecidesDay: z.boolean(),
+    })
+    .optional(),
   ranking: z.object({
     primary: z.literal('regular_points'),
     tiebreakers: z.array(z.literal('penalty_tiebreak_points')),

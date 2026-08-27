@@ -582,6 +582,24 @@ export async function endMatch(
         revision: Number(match.revision) + 1,
       });
 
+      // Close the challenge the match belongs to. Nothing else ever did: the
+      // other four are closed by `completeChallenge`, but the 5v5 has no rounds
+      // to complete, so C5 sat on `live` with a null winner however the match
+      // finished. The ceremony's readiness gate asks whether every challenge is
+      // closed, so it could never open — which is what "the ceremony does not
+      // work" turned out to mean. Left alone while a shootout is still owed,
+      // because the competition genuinely is not finished then.
+      if (!requiresShootout) {
+        await db
+          .from('challenges')
+          .update({
+            status: 'completed',
+            winner: totals.winner,
+            completed_at: now,
+          })
+          .eq('id', challenge.id);
+      }
+
       ctx.audit({
         action: 'match.ended',
         entityType: 'match',

@@ -29,7 +29,7 @@ import { useControllerCommands } from '@/components/controller/useControllerComm
 import {
   accentFor,
   eligiblePlayers,
-  isConfirmedDraw,
+  canOpenShootout,
   shootoutTurn,
   slotLabelForPlayer,
 } from '@/components/controller/controller-model';
@@ -51,7 +51,8 @@ export function PenaltyShootoutSurface() {
   const shootout = snapshot.shootout;
   const state = snapshot.shootoutState;
   const penalties = snapshot.scoring.penalties;
-  const drawn = isConfirmedDraw(snapshot);
+  // Under the two-competition day this is a level DAY, not a drawn match.
+  const canOpen = canOpenShootout(snapshot);
 
   // ---------------------------------------------------------------- gates --
   if (!match) return null;
@@ -67,7 +68,7 @@ export function PenaltyShootoutSurface() {
     );
   }
 
-  if (!shootout && !drawn) {
+  if (!shootout && !canOpen) {
     const totals = snapshot.matchTotals;
     return (
       <Panel tone="sunken" title="PENALTY SHOOTOUT">

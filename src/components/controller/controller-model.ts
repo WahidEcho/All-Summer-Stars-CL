@@ -11,6 +11,7 @@
  */
 
 import {
+  challengesCompetitionTotals,
   attemptsPerPlayer,
   scoreAttempt,
   type ShootoutState,
@@ -341,6 +342,51 @@ export function isConfirmedDraw(snapshot: EventSnapshot): boolean {
     match.status === 'penalties' ||
     match.status === 'completed'
   );
+}
+
+/**
+ * May a shootout be opened right now?
+ *
+ * Two different rules, and the panel used to know only the older one. Without
+ * the two-competition day, penalties settle a drawn final match. WITH it, the
+ * match itself always finds a winner — a level match goes to golden goal — and
+ * the shootout exists to settle a 1–1 DAY: one side took the four skills
+ * challenges, the other took the 5v5. That day is decided by penalties and
+ * nothing else, so gating the panel on a drawn match made the deciding
+ * shootout of the format impossible to start: the match has a winner, so
+ * `isConfirmedDraw` is false and the OPEN button was never rendered.
+ *
+ * Mirrors the server's own guard in `openShootout` so the control and the
+ * command agree about when it is allowed.
+ */
+export function canOpenShootout(snapshot: EventSnapshot): boolean {
+  const match = snapshot.match;
+  const totals = snapshot.matchTotals;
+  if (!match || !totals) return false;
+  if (snapshot.scoring.penalties.enabledFor === 'disabled') return false;
+
+  if (snapshot.scoring.day?.twoCompetitions !== true) return isConfirmedDraw(snapshot);
+
+  // The 5v5 has to be finished and won before its point counts for anything.
+  const settled =
+    match.status === 'awaiting_result' ||
+    match.status === 'result_ready' ||
+    match.status === 'penalties' ||
+    match.status === 'completed';
+  if (!settled || totals.winner === 'draw') return false;
+
+  const skills = challengesCompetitionTotals(
+    snapshot.allRounds
+      .filter((r) => r.status === 'published' || r.status === 'completed')
+      .filter((r) => {
+        const challenge = snapshot.challenges.find((c) => c.id === r.challenge_id);
+        return challenge != null && challenge.mechanic !== 'final_match';
+      })
+      .map((r) => ({ score_a: Number(r.score_a), score_b: Number(r.score_b) })),
+  );
+
+  // A 1–1 day is exactly a skills winner who is not the match winner.
+  return skills.winner !== 'draw' && skills.winner !== totals.winner;
 }
 
 /** Which side takes the next penalty, and whether the shootout is settled. */
