@@ -38,14 +38,21 @@ const WELCOME_LINE = 'Welcome to SwanLake Football Stars';
 /**
  * The walk-out marks, in milliseconds.
  *
- *   0.0 card grows in on the team · 0.6 photo · 1.4 name · 2.2 sparkle
+ *   0.0 card grows in on the team · 0.9 photo · 1.7 name · 2.5 sparkle
  *
- * Under three seconds end to end, because it plays while a player is walking
- * from the gate to their mark — the card has to be finished before they are.
- * The stages are cumulative, so the finished card simply stays on the wall
- * until the operator sends the next player.
+ * The first gap is the one that was measured rather than guessed. `SPRING.card`
+ * takes about 600ms to finish growing the card, so a photo cued at 600ms starts
+ * fading up the instant the card stops moving and the team never reads as its
+ * own beat. Cueing it at 900 leaves the team band alone on a settled card for
+ * about a third of a second — brief, but enough to land before the face
+ * arrives, which is the whole point of revealing the team first.
+ *
+ * Still comfortably inside three and a half seconds end to end, because it
+ * plays while a player is walking from the gate to their mark — the card has to
+ * be finished before they are. The stages are cumulative, so the finished card
+ * simply stays on the wall until the operator sends the next player.
  */
-const MARKS = [0, 600, 1400, 2200] as const;
+const MARKS = [0, 900, 1700, 2500] as const;
 
 const STAGE = { team: 1, photo: 2, name: 3, sparkle: 4 } as const;
 
