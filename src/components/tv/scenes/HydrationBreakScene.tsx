@@ -118,10 +118,13 @@ export function HydrationBreakScene({ model, payload }: SceneProps) {
         </span>
 
         {/* The bar is the glanceable half: a figure has to be read, a bar does
-            not, and most of the room is looking at this from the far side. */}
+            not, and most of the room is looking at this from the far side. The
+            track carries its own visible weight — on the pale field a track
+            that only appears once it has filled reads as a stray rule rather
+            than as a bar with time left in it. */}
         <div
           aria-hidden
-          className="bg-mist h-[18px] w-[62%] overflow-hidden rounded-pill"
+          className="bg-slate/45 ring-slate/40 h-[18px] w-[62%] overflow-hidden rounded-pill ring-1"
         >
           <div
             className="bg-aqua-700 h-full rounded-pill"
