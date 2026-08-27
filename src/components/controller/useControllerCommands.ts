@@ -35,6 +35,7 @@ import {
   reversePenaltyAttempt,
   startHalf,
   startRound,
+  cancelRound,
   startTimer,
   submitOfficialRoundResult,
 } from '@/lib/actions';
@@ -62,6 +63,8 @@ export interface ControllerCommands {
   startRound: () => Promise<void>;
   /** Start a specific round — the per-round rail's explicit control. */
   startRoundById: (roundId: string, label: string) => Promise<void>;
+  /** Put a started-by-mistake round back. Refused by the server once anything is recorded. */
+  cancelRoundById: (roundId: string, label: string) => Promise<void>;
   submitRoundResult: () => Promise<void>;
   publishRound: () => Promise<void>;
   reopenRound: (reason: string) => Promise<void>;
@@ -181,6 +184,15 @@ export function useControllerCommands(): ControllerCommands {
           label: `Start ${label}`,
           note: `${label.toUpperCase()} STARTED`,
           run: (base) => startRound({ ...base, roundId: targetRoundId }),
+        });
+      },
+
+      async cancelRoundById(targetRoundId, label) {
+        await runner.run({
+          id: `round:cancel:${targetRoundId}`,
+          label: `Put ${label} back`,
+          note: `${label.toUpperCase()} PUT BACK`,
+          run: (base) => cancelRound({ ...base, roundId: targetRoundId }),
         });
       },
 

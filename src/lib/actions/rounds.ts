@@ -168,6 +168,94 @@ export async function startRound(input: RoundCommandInput): Promise<ActionResult
 }
 
 /**
+ * Put an unplayed round back — the way out of a mis-tap.
+ *
+ * `startRound` refuses while another round is open, which is right: the show is
+ * strictly sequential. But it left the operator with no way back. A thumb
+ * landing on START R4 instead of R3 at pitch side put R4 "on the floor", and
+ * from there every other START was disabled with a reason and the only exits
+ * were to publish a round nobody played — inventing an official 0-0 result and
+ * the ledger rows that go with it — or to clear the whole challenge's scores,
+ * destroying the rounds already won. Neither is a thing to do in front of a
+ * crowd, so the show could stall on a mis-tap.
+ *
+ * This is the missing exit, and it is deliberately the narrowest one that
+ * closes the trap: a round with a single confirmed attempt is a round that was
+ * genuinely played, so it is refused outright and the operator is told what is
+ * on it. With nothing recorded there is nothing to lose — the round goes back
+ * to `pending` exactly as it was, and the correct round can start.
+ */
+export async function cancelRound(
+  input: RoundCommandInput,
+): Promise<ActionResult<RoundRow>> {
+  const parsed = parseInput(roundCommandSchema, input);
+  if (!parsed.ok) return parsed;
+  const value = parsed.value;
+
+  return runCommand<RoundRow>({
+    type: 'round.cancelled',
+    idempotencyKey: value.idempotencyKey,
+    deviceId: value.deviceId,
+    expectedRevision: value.expectedRevision,
+    payload: { roundId: value.roundId },
+    async run(ctx) {
+      const { db } = ctx;
+      const round = await loadRound(db, value.roundId);
+
+      assertState(
+        round.status === 'live' ||
+          round.status === 'awaiting_result' ||
+          round.status === 'result_ready',
+        round.status === 'pending' || round.status === 'ready'
+          ? 'This round has not been started.'
+          : 'This round is already official — reopen it instead.',
+        'illegal_state',
+      );
+
+      // The one thing that makes this safe: a played round is never silently
+      // thrown away. Reversed attempts do not count — they are already undone.
+      const attempts = takeRows<AttemptRow>(
+        await db
+          .from('attempts')
+          .select('*')
+          .eq('round_id', round.id)
+          .eq('status', 'confirmed'),
+      );
+      assertState(
+        attempts.length === 0,
+        `This round has ${attempts.length} recorded ${
+          attempts.length === 1 ? 'attempt' : 'attempts'
+        } — undo them first if it was started by mistake, or submit and publish it.`,
+        'illegal_state',
+      );
+
+      const updated = take<RoundRow>(
+        await db
+          .from('rounds')
+          .update({
+            status: 'pending',
+            active_side: null,
+            revision: Number(round.revision) + 1,
+          })
+          .eq('id', round.id)
+          .select('*')
+          .single(),
+      );
+
+      ctx.audit({
+        action: 'round.cancelled',
+        entityType: 'round',
+        entityId: round.id,
+        before: { status: round.status },
+        after: { status: 'pending' },
+      });
+
+      return updated;
+    },
+  });
+}
+
+/**
  * Freeze the official result of a round. Totals come from `computeRoundTotals`
  * over the confirmed attempts, never from anything the client sent.
  */

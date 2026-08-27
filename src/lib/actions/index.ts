@@ -12,6 +12,7 @@ export { recordAttempt, reverseAttempt } from '@/lib/actions/attempts';
 
 export {
   startRound,
+  cancelRound,
   submitOfficialRoundResult,
   publishRoundResult,
   reopenRoundResult,

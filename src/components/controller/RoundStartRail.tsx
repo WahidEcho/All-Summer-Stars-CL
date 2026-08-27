@@ -7,6 +7,12 @@
  * server enforces one round at a time, and this rail says so before the tap:
  * while any round is open, every other START is disabled with the reason, so
  * the show can only ever move round by round, in order, on a press.
+ *
+ * The open round carries the way back out. One round at a time is the right
+ * rule and a mis-tap is inevitable on a tablet at pitch side, so the round on
+ * the floor offers PUT BACK for exactly as long as nothing has been recorded
+ * on it — after the first attempt it is a round that was played, and the way
+ * out of those is to undo the attempts or to publish.
  */
 
 import { useController } from '@/components/controller/controller-context';
@@ -31,6 +37,45 @@ const IN_FLIGHT: ReadonlyArray<RoundRow['status']> = [
   'result_ready',
 ];
 
+export interface PutBackDecision {
+  /** Whether the control may be pressed. */
+  allowed: boolean;
+  /** Why not, when it may not be — shown on the disabled control. */
+  reason: string;
+}
+
+/**
+ * May this open round be put back?
+ *
+ * Pure, and exported, because it is the guard on the one control that exists
+ * to rescue a stalled show: a mis-tapped START, with the correct round now
+ * un-startable behind the one-round-at-a-time rule. Getting it wrong in either
+ * direction is expensive — too strict and the show stays stalled, too loose
+ * and a played round is silently thrown away — so it is pinned by tests rather
+ * than left inline in the markup.
+ *
+ * `confirmedOnCurrent` is only meaningful for the snapshot's current round;
+ * for any other round the snapshot cannot see the attempts, so this defers and
+ * lets the server refuse — it counts the rail itself before it writes.
+ */
+export function putBackDecision(input: {
+  canMutate: boolean;
+  isCurrentRound: boolean;
+  confirmedOnCurrent: number;
+}): PutBackDecision {
+  if (!input.canMutate) {
+    return { allowed: false, reason: 'This device does not hold the controls.' };
+  }
+  if (input.isCurrentRound && input.confirmedOnCurrent > 0) {
+    const n = input.confirmedOnCurrent;
+    return {
+      allowed: false,
+      reason: `${n} attempt${n === 1 ? '' : 's'} recorded — undo them first, or submit and publish.`,
+    };
+  }
+  return { allowed: true, reason: '' };
+}
+
 export function RoundStartRail() {
   const { snapshot, canMutate } = useController();
   const commands = useControllerCommands();
@@ -40,6 +85,14 @@ export function RoundStartRail() {
 
   const rounds = [...snapshot.rounds].sort((a, b) => a.number - b.number);
   if (rounds.length === 0) return null;
+
+  // Attempts travel with the *current* round only, so a round can be put back
+  // when the snapshot can actually prove it is empty. When it cannot, the
+  // control still offers itself and the server has the final say — it refuses
+  // a played round outright and says what is on it.
+  const confirmedOnCurrent = snapshot.attempts.filter(
+    (a) => a.status === 'confirmed',
+  ).length;
 
   // The open round anywhere in the event — the server refuses a second one.
   const open = snapshot.allRounds.find((r) => IN_FLIGHT.includes(r.status)) ?? null;
@@ -76,7 +129,33 @@ export function RoundStartRail() {
                   {round.winner === 'draw' ? ' · DRAW' : ''}
                 </p>
               ) : isOpen ? (
-                <p className="u-label text-live text-[13px]">ON THE FLOOR NOW</p>
+                <div className="flex flex-col gap-2">
+                  <p className="u-label text-live text-[13px]">ON THE FLOOR NOW</p>
+                  {(() => {
+                    const decision = putBackDecision({
+                      canMutate,
+                      isCurrentRound: snapshot.currentRound?.id === round.id,
+                      confirmedOnCurrent,
+                    });
+                    return (
+                      <ControlButton
+                        label="PUT BACK"
+                        glyph="↩"
+                        size="sm"
+                        tone="quiet"
+                        disabled={!decision.allowed}
+                        disabledReason={decision.reason}
+                        busy={false}
+                        onPress={() =>
+                          void commands.cancelRoundById(
+                            round.id,
+                            `round ${round.number} of challenge ${challenge.number}`,
+                          )
+                        }
+                      />
+                    );
+                  })()}
+                </div>
               ) : (
                 <ControlButton
                   label={`START ${label}`}
