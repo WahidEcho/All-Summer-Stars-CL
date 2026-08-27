@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 /**
  * The player entrance console.
@@ -19,19 +19,20 @@
  * card on the wall a beat after the moment it belongs to.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 
-import { setDisplayScene } from '@/lib/actions';
+import { setDisplayScene } from "@/lib/actions";
 import {
   newIdempotencyKey,
   useDeviceId,
   useDisplayState,
   useEventSnapshot,
-} from '@/lib/hooks';
-import type { PlayerRow, TeamCode, TeamRow } from '@/lib/types';
-import { displayNameOf } from '@/components/player';
-import { StatusPill, teamRowAccentVars } from '@/components/ui';
+} from "@/lib/hooks";
+import type { PlayerRow, TeamCode, TeamRow } from "@/lib/types";
+import { cn } from "@/lib/cn";
+import { displayNameOf } from "@/components/player";
+import { StatusPill, teamRowAccentVars } from "@/components/ui";
 import {
   AdminButton,
   ButtonRow,
@@ -41,7 +42,7 @@ import {
   Panel,
   PlayerSendCard,
   useActionRunner,
-} from '@/components/admin';
+} from "@/components/admin";
 
 /**
  * How long an armed card stays armed.
@@ -60,8 +61,11 @@ interface SquadPanelProps {
   liveId: string | null;
   sentIds: ReadonlySet<string>;
   failedId: string | null;
+  /** This team's title card is the frame currently on the wall. */
+  teamOnTv: boolean;
   disabled: boolean;
   onPress: (player: PlayerRow) => void;
+  onShowTeam: () => void;
 }
 
 function SquadPanel({
@@ -72,8 +76,10 @@ function SquadPanel({
   liveId,
   sentIds,
   failedId,
+  teamOnTv,
   disabled,
   onPress,
+  onShowTeam,
 }: SquadPanelProps) {
   const walked = players.filter((p) => sentIds.has(p.id)).length;
   return (
@@ -85,7 +91,7 @@ function SquadPanel({
         <span
           aria-hidden
           className="rounded-pill block h-3 w-12"
-          style={{ background: teamRowAccentVars(team)['--team-accent'] }}
+          style={{ background: teamRowAccentVars(team)["--team-accent"] }}
         />
       }
     >
@@ -103,6 +109,42 @@ function SquadPanel({
         />
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+          {/* The between-players beat, in the grid rather than the header: it
+              is pressed as often as the cards themselves, so it belongs under
+              the same thumb. */}
+          <button
+            type="button"
+            onClick={onShowTeam}
+            disabled={disabled}
+            aria-label={`Put the ${team?.name ?? `Team ${code}`} title card on the TV`}
+            style={teamRowAccentVars(team)}
+            className={cn(
+              "group focus-visible:ring-focus relative flex flex-col items-center justify-center gap-2 rounded-lg p-3 text-center ring-1 transition focus-visible:ring-4 focus-visible:outline-none",
+              "bg-[color:var(--team-accent-soft)]",
+              teamOnTv
+                ? "ring-live ring-4"
+                : "ring-border-subtle hover:ring-aqua-400 hover:shadow-card",
+              disabled && "cursor-not-allowed opacity-60",
+            )}
+          >
+            {teamOnTv ? (
+              <StatusPill label="ON TV" tone="live" size="sm" pulse />
+            ) : (
+              <span
+                aria-hidden
+                className="u-display text-[color:var(--team-accent-ink)] text-[1.5rem] leading-none"
+              >
+                &#9679;
+              </span>
+            )}
+            <span className="u-label text-[color:var(--team-accent-ink)] text-[0.8125rem] leading-tight">
+              {team?.short_name || team?.name || `TEAM ${code}`}
+            </span>
+            <span className="u-label text-text-muted text-[0.6875rem] leading-tight">
+              TITLE CARD
+            </span>
+          </button>
+
           {players.map((player) => (
             <PlayerSendCard
               key={player.id}
@@ -126,7 +168,11 @@ export default function PlayerEntrancePage() {
   const deviceId = useDeviceId();
   const runner = useActionRunner();
 
-  const { snapshot, error: snapshotError, loading } = useEventSnapshot({ pollMs: 15_000 });
+  const {
+    snapshot,
+    error: snapshotError,
+    loading,
+  } = useEventSnapshot({ pollMs: 15_000 });
   const {
     programScene,
     programPayload,
@@ -170,21 +216,32 @@ export default function PlayerEntrancePage() {
   const squads = useMemo(() => {
     const empty: Record<TeamCode, PlayerRow[]> = { A: [], B: [] };
     if (!snapshot) return empty;
-    for (const code of ['A', 'B'] as const) {
+    for (const code of ["A", "B"] as const) {
       const team = snapshot.teamsByCode[code];
       if (!team) continue;
-      empty[code] = snapshot.players.filter((player) => player.team_id === team.id);
+      empty[code] = snapshot.players.filter(
+        (player) => player.team_id === team.id,
+      );
     }
     return empty;
   }, [snapshot]);
 
   /** Who is on the wall right now, if the wall is showing an entrance at all. */
   const liveId =
-    programScene === 'player_entrance' && typeof programPayload.playerId === 'string'
+    programScene === "player_entrance" &&
+    typeof programPayload.playerId === "string"
       ? programPayload.playerId
       : null;
 
   const livePlayer = liveId ? (snapshot?.playersById[liveId] ?? null) : null;
+
+  /** The team whose title card is on the wall, if that is what is showing. */
+  const rawTeamOnTv =
+    programScene === "player_entrance" && !liveId
+      ? programPayload.teamCode
+      : null;
+  const liveTeamCode: TeamCode | null =
+    rawTeamOnTv === "A" || rawTeamOnTv === "B" ? rawTeamOnTv : null;
 
   const send = useCallback(
     async (player: PlayerRow): Promise<void> => {
@@ -194,12 +251,14 @@ export default function PlayerEntrancePage() {
       const result = await runner.run(
         () =>
           setDisplayScene({
-            idempotencyKey: newIdempotencyKey('entrance-send'),
+            idempotencyKey: newIdempotencyKey("entrance-send"),
             deviceId,
-            scene: 'player_entrance',
+            scene: "player_entrance",
             payload: { playerId: player.id },
           }),
-        { success: `${displayNameOf(player) || 'That player'} is on the wall.` },
+        {
+          success: `${displayNameOf(player) || "That player"} is on the wall.`,
+        },
       );
       // A failed send used to leave the card exactly as it was, which on a
       // scrolled tablet is indistinguishable from never having pressed it —
@@ -238,15 +297,42 @@ export default function PlayerEntrancePage() {
     await runner.run(
       () =>
         setDisplayScene({
-          idempotencyKey: newIdempotencyKey('entrance-welcome'),
+          idempotencyKey: newIdempotencyKey("entrance-welcome"),
           deviceId,
-          scene: 'player_entrance',
+          scene: "player_entrance",
           payload: {},
         }),
-      { success: 'The welcome frame is on the wall.' },
+      { success: "The welcome frame is on the wall." },
     );
     void refreshDisplay();
   }, [clearDisarm, deviceId, runner, refreshDisplay]);
+
+  /**
+   * The beat between two players: the team's own title card.
+   *
+   * Single tap, no arming. The player cards arm first because putting the
+   * wrong face on the wall is a mistake worth a second thumb press; this is a
+   * neutral frame the operator reaches for between every entrance, and making
+   * them press it twice each time would be the wrong trade.
+   */
+  const showTeam = useCallback(
+    async (code: TeamCode, label: string): Promise<void> => {
+      clearDisarm();
+      setArmedId(null);
+      await runner.run(
+        () =>
+          setDisplayScene({
+            idempotencyKey: newIdempotencyKey("entrance-team"),
+            deviceId,
+            scene: "player_entrance",
+            payload: { teamCode: code },
+          }),
+        { success: `${label} is on the wall.` },
+      );
+      void refreshDisplay();
+    },
+    [clearDisarm, deviceId, runner, refreshDisplay],
+  );
 
   /**
    * Hand the wall to the director when the last player is in.
@@ -262,12 +348,12 @@ export default function PlayerEntrancePage() {
     await runner.run(
       () =>
         setDisplayScene({
-          idempotencyKey: newIdempotencyKey('entrance-auto'),
+          idempotencyKey: newIdempotencyKey("entrance-auto"),
           deviceId,
-          scene: 'auto',
+          scene: "auto",
           payload: {},
         }),
-      { success: 'AUTO is on air — the wall follows the show from here.' },
+      { success: "AUTO is on air — the wall follows the show from here." },
     );
     void refreshDisplay();
   }, [clearDisarm, deviceId, runner, refreshDisplay]);
@@ -278,21 +364,21 @@ export default function PlayerEntrancePage() {
     await runner.run(
       () =>
         setDisplayScene({
-          idempotencyKey: newIdempotencyKey('entrance-holding'),
+          idempotencyKey: newIdempotencyKey("entrance-holding"),
           deviceId,
-          scene: 'holding',
+          scene: "holding",
           payload: {},
         }),
-      { success: 'Back to the holding screen.' },
+      { success: "Back to the holding screen." },
     );
     void refreshDisplay();
   }, [clearDisarm, deviceId, runner, refreshDisplay]);
 
   const onWall = livePlayer
     ? `${displayNameOf(livePlayer)} is on the wall.`
-    : programScene === 'player_entrance'
-      ? 'The welcome frame is on the wall.'
-      : 'The entrance is not on the wall — the wall is showing another scene.';
+    : programScene === "player_entrance"
+      ? "The welcome frame is on the wall."
+      : "The entrance is not on the wall — the wall is showing another scene.";
 
   return (
     <div className="space-y-6">
@@ -333,11 +419,15 @@ export default function PlayerEntrancePage() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <StatusPill
-              label={programScene === 'player_entrance' ? 'ENTRANCE LIVE' : 'OFF AIR'}
-              tone={programScene === 'player_entrance' ? 'live' : 'neutral'}
+              label={
+                programScene === "player_entrance" ? "ENTRANCE LIVE" : "OFF AIR"
+              }
+              tone={programScene === "player_entrance" ? "live" : "neutral"}
               size="md"
             />
-            <span className="text-text-secondary text-[0.875rem]">{onWall}</span>
+            <span className="text-text-secondary text-[0.875rem]">
+              {onWall}
+            </span>
           </div>
           <Link href="/tv" target="_blank" rel="noreferrer">
             <AdminButton variant="secondary" size="sm">
@@ -348,13 +438,16 @@ export default function PlayerEntrancePage() {
       </Panel>
 
       {runner.status ? (
-        <Callout tone={runner.status.tone === 'ok' ? 'success' : 'danger'}>
+        <Callout tone={runner.status.tone === "ok" ? "success" : "danger"}>
           {runner.status.message}
         </Callout>
       ) : null}
 
       {snapshotError ? (
-        <Callout tone="warning" title="The roster on screen may be behind the server">
+        <Callout
+          tone="warning"
+          title="The roster on screen may be behind the server"
+        >
           {snapshotError}
         </Callout>
       ) : null}
@@ -371,7 +464,7 @@ export default function PlayerEntrancePage() {
         </Panel>
       ) : (
         <div className="space-y-6">
-          {(['A', 'B'] as const).map((code) => (
+          {(["A", "B"] as const).map((code) => (
             <SquadPanel
               key={code}
               code={code}
@@ -381,8 +474,15 @@ export default function PlayerEntrancePage() {
               liveId={liveId}
               sentIds={sentIds}
               failedId={failedId}
+              teamOnTv={liveTeamCode === code}
               disabled={runner.pending}
               onPress={press}
+              onShowTeam={() =>
+                void showTeam(
+                  code,
+                  snapshot?.teamsByCode[code]?.name ?? `Team ${code}`,
+                )
+              }
             />
           ))}
         </div>

@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import { useMemo } from 'react';
-import { motion } from 'motion/react';
+import { useMemo } from "react";
+import { motion } from "motion/react";
 
-import { cn } from '@/lib/cn';
+import { cn } from "@/lib/cn";
 import {
   PlayerNameLockup,
   PlayerPhoto,
   displayNameOf,
   teamCodeOf,
   type PlayerLike,
-} from '@/components/player';
+} from "@/components/player";
 import {
   DURATION,
   EASE,
@@ -18,13 +18,13 @@ import {
   StatusPill,
   teamRowAccentVars,
   useMotionScale,
-} from '@/components/ui';
-import { SceneFrame } from '@/components/tv/SceneFrame';
-import { StarBurst } from '@/components/tv/parts/StarBurst';
-import { useRevealStage } from '@/components/tv/use-reveal-stage';
-import { payloadString, type SceneProps } from '@/components/tv/scene-props';
-import type { SideModel } from '@/components/tv/scene-model';
-import type { TeamCode } from '@/lib/types';
+} from "@/components/ui";
+import { SceneFrame } from "@/components/tv/SceneFrame";
+import { StarBurst } from "@/components/tv/parts/StarBurst";
+import { useRevealStage } from "@/components/tv/use-reveal-stage";
+import { payloadString, type SceneProps } from "@/components/tv/scene-props";
+import type { SideModel } from "@/components/tv/scene-model";
+import type { TeamCode } from "@/lib/types";
 
 /**
  * The one line every player is welcomed with.
@@ -33,7 +33,7 @@ import type { TeamCode } from '@/lib/types';
  * the gate in a couple of minutes, and a per-player message is one more thing
  * to get wrong live for no gain. `u-display` sets it in caps.
  */
-const WELCOME_LINE = 'Welcome to SwanLake Football Stars';
+const WELCOME_LINE = "Welcome to SwanLake Football Stars";
 
 /**
  * The walk-out marks, in milliseconds.
@@ -92,7 +92,7 @@ const STAR_POINTS = (() => {
       `${(50 + Math.cos(angle) * radius).toFixed(2)},${(50 + Math.sin(angle) * radius).toFixed(2)}`,
     );
   }
-  return points.join(' ');
+  return points.join(" ");
 })();
 
 interface SparkleRingProps {
@@ -148,8 +148,8 @@ function SparkleRing({ runKey, show }: SparkleRingProps) {
             delay: show ? star.delay : 0,
           }}
           className={cn(
-            'absolute animate-twinkle',
-            star.gold ? 'text-gold' : 'text-aqua-400',
+            "absolute animate-twinkle",
+            star.gold ? "text-gold" : "text-aqua-400",
           )}
           style={{
             left: star.x,
@@ -194,7 +194,9 @@ function EntranceCard({ player, side, stage }: EntranceCardProps) {
         style={teamRowAccentVars(side?.team)}
         initial={motionOn ? { opacity: 0, scale: 0.18 } : false}
         animate={
-          at(STAGE.team) ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.18 }
+          at(STAGE.team)
+            ? { opacity: 1, scale: 1 }
+            : { opacity: 0, scale: 0.18 }
         }
         transition={motionOn ? SPRING.card : { duration: 0 }}
         className="shadow-hero relative z-10 flex h-full w-full flex-col overflow-hidden rounded-[28px] bg-white ring-8 ring-[color:var(--team-accent)]"
@@ -204,8 +206,8 @@ function EntranceCard({ player, side, stage }: EntranceCardProps) {
           className="flex shrink-0 items-center justify-center gap-5 px-8"
           style={{
             height: 104,
-            background: 'var(--team-accent)',
-            color: 'var(--team-accent-contrast)',
+            background: "var(--team-accent)",
+            color: "var(--team-accent-contrast)",
           }}
         >
           {side?.team?.crest_url ? (
@@ -219,7 +221,7 @@ function EntranceCard({ player, side, stage }: EntranceCardProps) {
             />
           ) : null}
           <span className="u-display text-[44px] leading-none">
-            {side?.name ?? 'SWANLAKE'}
+            {side?.name ?? "SWANLAKE"}
           </span>
         </header>
 
@@ -237,14 +239,21 @@ function EntranceCard({ player, side, stage }: EntranceCardProps) {
             transition={{ duration: DURATION.hero, ease: EASE.entrance }}
             className="absolute inset-0"
           >
-            <PlayerPhoto player={player} fit="contain" priority deliveryWidth={640} />
+            <PlayerPhoto
+              player={player}
+              fit="contain"
+              priority
+              deliveryWidth={640}
+            />
           </motion.div>
         </div>
 
         {/* 3 — the name. */}
         <motion.footer
           initial={motionOn ? { opacity: 0, y: 30 } : false}
-          animate={at(STAGE.name) ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
+          animate={
+            at(STAGE.name) ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }
+          }
           transition={{ duration: DURATION.card, ease: EASE.entrance }}
           // Taller than the other cards' name plates: two names at one size
           // need the room the small-over-large stack did not. The photo above
@@ -259,12 +268,60 @@ function EntranceCard({ player, side, stage }: EntranceCardProps) {
             tone="team"
             introduction
             eyebrow={
-              player.jersey_number != null ? `NO. ${player.jersey_number}` : undefined
+              player.jersey_number != null
+                ? `NO. ${player.jersey_number}`
+                : undefined
             }
           />
         </motion.footer>
       </motion.article>
     </div>
+  );
+}
+
+/**
+ * The team title card — the beat between two players.
+ *
+ * The operator asked for this and it is the right shape: sending player after
+ * player cuts one face straight to the next, and the room never gets told whose
+ * side any of them are on. A title card between entrances gives the walk-out
+ * its punctuation — team, then their players, then the other team — and gives
+ * the operator somewhere to hold while the next player is still walking.
+ *
+ * It is a hold, not a timed step: it stays until the next thing is sent, like
+ * every other frame in this scene.
+ */
+function TeamTitleCard({ side }: { side: SideModel }) {
+  const motionOn = useMotionScale() === 1;
+
+  return (
+    <motion.div
+      key={side.code}
+      initial={motionOn ? { opacity: 0, scale: 0.94 } : false}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={SPRING.card}
+      style={teamRowAccentVars(side.team)}
+      className="flex flex-col items-center justify-center gap-6 text-center"
+    >
+      <span className="u-label text-[color:var(--team-accent)] text-[26px]">
+        NOW ENTERING
+      </span>
+
+      <span
+        className={cn(
+          "u-display leading-[0.9] [overflow-wrap:anywhere]",
+          "text-[color:var(--team-accent-ink)]",
+        )}
+        style={{ fontSize: side.name.length > 12 ? 132 : 168 }}
+      >
+        {side.name}
+      </span>
+
+      <span
+        aria-hidden
+        className="rounded-pill h-[10px] w-[280px] bg-[color:var(--team-accent)]"
+      />
+    </motion.div>
   );
 }
 
@@ -275,16 +332,21 @@ function EntranceCard({ player, side, stage }: EntranceCardProps) {
  * sends each card as its player emerges, so this scene is driven entirely by
  * `payload.playerId` rather than by anything in the scoring model.
  *
- * Two states and nothing else: the welcome frame the sequence opens on, and
- * one player's card. The card is cumulative and never times out — it holds the
- * wall until the next player is sent, because a gate that goes quiet for
- * fifteen seconds must not leave the audience looking at an empty screen.
+ * Three states, and the operator drives every change between them: the welcome
+ * frame the sequence opens on, a team title card, and one player's card. None
+ * of them time out — each holds the wall until the next thing is sent, because
+ * a gate that goes quiet for fifteen seconds must not leave the audience
+ * looking at an empty screen.
+ *
+ * `payload.playerId` names a player; `payload.teamCode` on its own names a
+ * team; neither is the welcome frame. A player wins if both are present, so a
+ * stale team code can never hide a player who is already walking.
  */
 export function PlayerEntranceScene({ model, payload }: SceneProps) {
   const motionOn = useMotionScale() === 1;
   const { snapshot } = model;
 
-  const playerId = payloadString(payload, 'playerId');
+  const playerId = payloadString(payload, "playerId");
   const player = model.playerFor(playerId);
 
   // A bare `PlayerRow` carries no `teamCode`, so fall back to matching the
@@ -293,11 +355,19 @@ export function PlayerEntranceScene({ model, payload }: SceneProps) {
   const code: TeamCode | null =
     teamCodeOf(player) ??
     (player && model.a.team && player.team_id === model.a.team.id
-      ? 'A'
+      ? "A"
       : player && model.b.team && player.team_id === model.b.team.id
-        ? 'B'
+        ? "B"
         : null);
   const side = code ? model.side(code) : null;
+
+  // The between-players beat. Only consulted when no player is on the card, so
+  // a leftover team code cannot displace someone already walking out.
+  const rawTeam = payloadString(payload, "teamCode");
+  const titleSide =
+    !player && (rawTeam === "A" || rawTeam === "B")
+      ? model.side(rawTeam)
+      : null;
 
   const stage = useRevealStage(MARKS, player ? player.id : null);
 
@@ -315,12 +385,18 @@ export function PlayerEntranceScene({ model, payload }: SceneProps) {
     >
       <div
         className="grid h-full min-h-0"
-        style={{ gridTemplateRows: '120px minmax(0, 1fr)' }}
+        style={{ gridTemplateRows: "120px minmax(0, 1fr)" }}
       >
         {/* The welcome line is the constant: it is on screen before the first
             player walks out and stays above every card that follows. */}
         <motion.div
-          key={player ? 'welcome-player' : 'welcome-idle'}
+          key={
+            player
+              ? "welcome-player"
+              : titleSide
+                ? `welcome-team-${titleSide.code}`
+                : "welcome-idle"
+          }
           initial={motionOn ? { opacity: 0, y: -18 } : false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: DURATION.card, ease: EASE.entrance }}
@@ -333,18 +409,24 @@ export function PlayerEntranceScene({ model, payload }: SceneProps) {
             <span className="u-label text-text-muted text-[20px]">
               NOW ENTERING · {displayNameOf(player)}
             </span>
+          ) : titleSide ? (
+            <span className="u-label text-text-muted text-[20px]">
+              PRESENTING THE SQUAD
+            </span>
           ) : null}
         </motion.div>
 
         <div className="relative flex min-h-0 items-center justify-center">
           {player ? (
             <EntranceCard player={player} side={side} stage={stage} />
+          ) : titleSide ? (
+            <TeamTitleCard side={titleSide} />
           ) : (
             /* The frame the gate opens on, and the one it falls back to if the
                operator clears the card between players. */
             <div className="flex flex-col items-center justify-center gap-8 text-center">
               <span className="u-display text-aqua-700 text-[92px] leading-[0.88]">
-                {model.venueLabel || 'LIVE FROM SWANLAKE NORTH COAST'}
+                {model.venueLabel || "LIVE FROM SWANLAKE NORTH COAST"}
               </span>
               {model.eventDateLabel ? (
                 <span className="u-label text-text-muted text-[24px]">
