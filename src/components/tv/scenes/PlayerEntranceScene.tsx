@@ -246,14 +246,18 @@ function EntranceCard({ player, side, stage }: EntranceCardProps) {
           initial={motionOn ? { opacity: 0, y: 30 } : false}
           animate={at(STAGE.name) ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
           transition={{ duration: DURATION.card, ease: EASE.entrance }}
+          // Taller than the other cards' name plates: two names at one size
+          // need the room the small-over-large stack did not. The photo above
+          // is `flex-1`, so this is the only measurement that has to change.
           className="flex shrink-0 items-center justify-center px-8"
-          style={{ height: 148 }}
+          style={{ height: 196 }}
         >
           <PlayerNameLockup
             player={player}
             size="lg"
             align="center"
             tone="team"
+            equalNames
             eyebrow={
               player.jersey_number != null ? `NO. ${player.jersey_number}` : undefined
             }

@@ -22,6 +22,22 @@ export interface PlayerNameLockupProps {
   tone?: PlayerNameTone;
   /** Render the first name on its own smaller line. Default true. */
   showFirstName?: boolean;
+  /**
+   * Set both names at one size, on lines that cannot collide.
+   *
+   * The default lockup is a small first name tucked over an oversized surname,
+   * and it earns that everywhere the surname is the thing being called — a
+   * result card, a leaderboard row. The walk-out is the one place it is wrong:
+   * the player is being introduced by their whole name to a crowd who may not
+   * know either half, so neither half should be the footnote.
+   *
+   * It also fixes a collision. The stacked form leans on `--leading-slab`
+   * (0.84), a line box deliberately shorter than the glyphs it holds, which is
+   * what lets an oversized surname sit tight under its first name. At walk-out
+   * size those glyphs climbed into the line above and the two names overlapped.
+   * Equal names are set on their own full line boxes instead.
+   */
+  equalNames?: boolean;
   className?: string;
 }
 
@@ -64,10 +80,16 @@ export function PlayerNameLockup({
   sub,
   tone = 'ink',
   showFirstName = true,
+  equalNames = false,
   className,
 }: PlayerNameLockupProps) {
   const { first, last, full } = nameParts(player);
   const skin = TONE[tone];
+
+  // One size for both, taken from whichever name is longer so the wider of the
+  // two still fits the card — sizing each to its own length would set a short
+  // first name larger than the surname beneath it.
+  const pairScale = surnameScale(first.length > last.length ? first : last);
 
   return (
     <div
@@ -76,13 +98,31 @@ export function PlayerNameLockup({
       style={{ fontSize: BASE[size] }}
     >
       {eyebrow ? (
-        <span className={cn('u-label mb-[0.22em] text-[0.24em]', skin.small)}>{eyebrow}</span>
+        <span
+          className={cn(
+            'u-label text-[0.24em]',
+            // The number needs room of its own when the names below it are set
+            // at full size, or it reads as part of the first name.
+            equalNames ? 'mb-[0.5em]' : 'mb-[0.22em]',
+            skin.small,
+          )}
+        >
+          {eyebrow}
+        </span>
       ) : null}
 
       {showFirstName && first ? (
         <span
-          className={cn('u-display leading-[0.95] tracking-[0.01em]', skin.small)}
-          style={{ fontSize: `${(0.34 * firstNameScale(first)).toFixed(3)}em` }}
+          className={cn(
+            'u-display tracking-[0.01em]',
+            equalNames ? 'leading-[1.02] [overflow-wrap:anywhere]' : 'leading-[0.95]',
+            skin.small,
+          )}
+          style={{
+            fontSize: equalNames
+              ? `${pairScale.toFixed(3)}em`
+              : `${(0.34 * firstNameScale(first)).toFixed(3)}em`,
+          }}
         >
           {first}
         </span>
@@ -90,10 +130,13 @@ export function PlayerNameLockup({
 
       <span
         className={cn(
-          'u-display leading-[var(--leading-slab)] [overflow-wrap:anywhere]',
+          'u-display [overflow-wrap:anywhere]',
+          equalNames ? 'leading-[1.02]' : 'leading-[var(--leading-slab)]',
           skin.name,
         )}
-        style={{ fontSize: `${surnameScale(last).toFixed(3)}em` }}
+        style={{
+          fontSize: `${(equalNames ? pairScale : surnameScale(last)).toFixed(3)}em`,
+        }}
       >
         {last}
       </span>
