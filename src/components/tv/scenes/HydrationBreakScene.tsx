@@ -69,8 +69,13 @@ export function HydrationBreakScene({ model, payload }: SceneProps) {
       {/* The break frame drops the standard header, so the competition would
           otherwise go unbranded for the two minutes the room spends looking at
           it — the one stretch of the show with nothing else on screen to say
-          whose event this is. */}
-      <div className="pointer-events-none absolute top-[40px] left-[64px] z-20 w-[320px]">
+          whose event this is.
+
+          Inset further than it looks: the `light` mark deliberately overflows
+          its own box to multiply the logo's whitespace away, so a box parked
+          hard in the corner throws the artwork off the canvas. The offsets
+          clear that bleed rather than the frame's margin. */}
+      <div className="pointer-events-none absolute top-[112px] left-[168px] z-20 w-[320px]">
         <EventMark variant="light" title="" />
       </div>
 
