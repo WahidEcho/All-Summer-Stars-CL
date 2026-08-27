@@ -52,6 +52,7 @@ export {
 
 export {
   setDisplayScene,
+  startBreak,
   setPreviewScene,
   takePreviewLive,
   clearPreviewScene,

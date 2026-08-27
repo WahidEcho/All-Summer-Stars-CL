@@ -143,6 +143,17 @@ export const SCENES: SceneDescriptor[] = [
     ],
   },
   {
+    scene: 'hydration_break',
+    cue: '11',
+    title: 'Hydration break',
+    purpose:
+      'A called cooling break with the clock the room reads to know when to be back. ' +
+      'Start it from the CALL BREAK button on the transmission bar rather than here — ' +
+      'that stamps the end time. Two minutes by default, and pressing it again starts a ' +
+      'fresh one, so a second or third break needs nothing reset.',
+    fields: [],
+  },
+  {
     scene: 'ceremony',
     cue: '09',
     title: 'Ceremony',

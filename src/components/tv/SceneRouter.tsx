@@ -5,6 +5,7 @@ import { ChallengeResultScene } from '@/components/tv/scenes/ChallengeResultScen
 import { FinalMatchScene } from '@/components/tv/scenes/FinalMatchScene';
 import { HeadToHeadScene } from '@/components/tv/scenes/HeadToHeadScene';
 import { HoldingScene } from '@/components/tv/scenes/HoldingScene';
+import { HydrationBreakScene } from '@/components/tv/scenes/HydrationBreakScene';
 import { LeaderboardScene } from '@/components/tv/scenes/LeaderboardScene';
 import { LineupsScene } from '@/components/tv/scenes/LineupsScene';
 import { LiveRoundScene } from '@/components/tv/scenes/LiveRoundScene';
@@ -48,6 +49,8 @@ export function SceneRouter(props: SceneProps) {
       return <CeremonyScene {...props} />;
     case 'player_entrance':
       return <PlayerEntranceScene {...props} />;
+    case 'hydration_break':
+      return <HydrationBreakScene {...props} />;
     // 'auto' is resolved by the director inside TvSurface and should never
     // reach the router; if it somehow does, the holding slate is the one
     // composition that is always safe to show in front of a crowd.

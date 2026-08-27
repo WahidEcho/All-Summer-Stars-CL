@@ -128,11 +128,18 @@ export const displaySceneEnum = z.enum([
   'leaderboard',
   'ceremony',
   'player_entrance',
+  'hydration_break',
 ]);
 
 export const displaySceneSchema = commandBase.extend({
   scene: displaySceneEnum,
   payload: z.record(z.string(), z.unknown()).optional(),
+});
+
+export const startBreakSchema = commandBase.extend({
+  /** How long the break runs. Defaults to two minutes at the call site. */
+  durationMs: z.number().int().min(15_000).max(1_800_000).optional(),
+  headline: z.string().max(60).optional(),
 });
 
 export const ceremonyPhaseSchema = commandBase.extend({

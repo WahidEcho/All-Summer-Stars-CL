@@ -992,6 +992,7 @@ export const SAMPLE_SCENES: readonly DisplayScene[] = [
   'leaderboard',
   'ceremony',
   'player_entrance',
+  'hydration_break',
 ] as const;
 
 const SCENE_ALIASES: Record<string, DisplayScene> = {

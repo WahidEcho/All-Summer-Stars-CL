@@ -39,6 +39,7 @@ const ALL_SCENES: ReadonlyArray<DisplayScene> = [
   'leaderboard',
   'ceremony',
   'player_entrance',
+  'hydration_break',
 ];
 
 describe('display scene parity', () => {

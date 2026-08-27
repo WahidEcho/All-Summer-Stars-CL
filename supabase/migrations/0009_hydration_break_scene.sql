@@ -1,0 +1,12 @@
+-- =====================================================================
+-- Migration 0009: scene HYDRATION BREAK — the cooling break clock
+--
+-- A manually called break between challenges: the operator starts it,
+-- the wall counts two minutes down, and the room knows how long it has.
+-- There may be two or three of them in a day, so it is restartable by
+-- construction — `program_payload.endsAt` is stamped fresh on every
+-- press and the wall derives the clock from it, which also means a wall
+-- that reloads mid-break rejoins the same countdown rather than
+-- starting a new one.
+-- =====================================================================
+alter type display_scene add value if not exists 'hydration_break';

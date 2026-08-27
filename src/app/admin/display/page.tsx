@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 /**
  * The TV control room.
@@ -33,27 +33,32 @@
  * FOLLOWING LIVE, and can drop the pin again in one tap.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 
-import { cn } from '@/lib/cn';
-import { getRoundsForChallenges } from '@/lib/data/queries';
-import { supabase } from '@/lib/supabase/client';
+import { cn } from "@/lib/cn";
+import { getRoundsForChallenges } from "@/lib/data/queries";
+import { supabase } from "@/lib/supabase/client";
 import {
   clearPreviewScene,
   setDisplayScene,
   setPreviewScene,
+  startBreak,
   takePreviewLive,
-} from '@/lib/actions';
+} from "@/lib/actions";
 import {
   newIdempotencyKey,
   useDeviceId,
   useDisplayState,
   useEventSnapshot,
-} from '@/lib/hooks';
-import type { DisplayScene, RoundRow } from '@/lib/types';
-import { STAGE_H, STAGE_W, resolveCeremonyPhase } from '@/components/tv/constants';
-import { StatusPill } from '@/components/ui';
+} from "@/lib/hooks";
+import type { DisplayScene, RoundRow } from "@/lib/types";
+import {
+  STAGE_H,
+  STAGE_W,
+  resolveCeremonyPhase,
+} from "@/components/tv/constants";
+import { StatusPill } from "@/components/ui";
 import {
   AdminButton,
   ButtonRow,
@@ -83,7 +88,7 @@ import {
   withoutTarget,
   type DisplayTarget,
   type ScenePayloadField,
-} from '@/components/admin';
+} from "@/components/admin";
 
 // ---------------------------------------------------------------------------
 // Payload drafts
@@ -102,7 +107,7 @@ type Draft = Record<string, string>;
  * the target picker owns both, for every scene, so there is exactly one control
  * in the room that decides what the wall is looking at.
  */
-const PIN_KEYS = new Set(['challengeId', 'roundId']);
+const PIN_KEYS = new Set(["challengeId", "roundId"]);
 
 interface PayloadSources {
   programScene: DisplayScene;
@@ -127,7 +132,7 @@ function seedFrom(scene: DisplayScene, sources: PayloadSources): Draft {
     draft[field.key] =
       raw === undefined || raw === null
         ? field.defaultValue === undefined
-          ? ''
+          ? ""
           : String(field.defaultValue)
         : String(raw);
   }
@@ -135,21 +140,24 @@ function seedFrom(scene: DisplayScene, sources: PayloadSources): Draft {
 }
 
 /** The scene's own fields, without the pin. The pin is merged in separately. */
-function buildPayload(scene: DisplayScene, draft: Draft): Record<string, unknown> {
+function buildPayload(
+  scene: DisplayScene,
+  draft: Draft,
+): Record<string, unknown> {
   const payload: Record<string, unknown> = {};
 
   for (const field of SCENE_BY_ID[scene].fields) {
     if (PIN_KEYS.has(field.key)) continue;
-    const raw = (draft[field.key] ?? '').trim();
-    if (raw === '') continue;
+    const raw = (draft[field.key] ?? "").trim();
+    if (raw === "") continue;
 
-    if (field.kind === 'number') {
+    if (field.kind === "number") {
       const parsed = Number(raw);
       if (Number.isFinite(parsed)) payload[field.key] = parsed;
       continue;
     }
-    if (field.kind === 'boolean') {
-      payload[field.key] = raw === 'true';
+    if (field.kind === "boolean") {
+      payload[field.key] = raw === "true";
       continue;
     }
     payload[field.key] = raw;
@@ -172,10 +180,12 @@ function missingFields(
   target: DisplayTarget,
 ): string[] {
   const base = missingSceneFields(scene, payload);
-  if (target.kind !== 'auto') return base;
+  if (target.kind !== "auto") return base;
 
   const supplied = new Set(
-    SCENE_BY_ID[scene].fields.filter((f) => PIN_KEYS.has(f.key)).map((f) => f.label),
+    SCENE_BY_ID[scene].fields
+      .filter((f) => PIN_KEYS.has(f.key))
+      .map((f) => f.label),
   );
   return base.filter((label) => !supplied.has(label));
 }
@@ -186,7 +196,7 @@ function missingFields(
 
 interface MonitorProps {
   label: string;
-  tone: 'program' | 'preview';
+  tone: "program" | "preview";
   src: string;
   /** What the operator should read under the picture. */
   sceneLabel: string;
@@ -223,9 +233,9 @@ function Monitor({
     const measure = () => setWidth(host.clientWidth);
     measure();
 
-    if (typeof ResizeObserver === 'undefined') {
-      window.addEventListener('resize', measure);
-      return () => window.removeEventListener('resize', measure);
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure);
+      return () => window.removeEventListener("resize", measure);
     }
 
     const observer = new ResizeObserver(() => measure());
@@ -234,14 +244,14 @@ function Monitor({
   }, []);
 
   const scale = width > 0 ? width / STAGE_W : 0;
-  const onAir = tone === 'program';
+  const onAir = tone === "program";
 
   return (
     <div className="min-w-0 space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <StatusPill
-          label={onAir ? 'PROGRAM — ON AIR' : 'PREVIEW'}
-          tone={onAir ? 'live' : 'neutral'}
+          label={onAir ? "PROGRAM — ON AIR" : "PREVIEW"}
+          tone={onAir ? "live" : "neutral"}
           size="sm"
           pulse={onAir}
         />
@@ -258,8 +268,8 @@ function Monitor({
       <div
         ref={hostRef}
         className={cn(
-          'bg-ink relative w-full overflow-hidden rounded-md ring-1',
-          onAir ? 'ring-live/50' : 'ring-border',
+          "bg-ink relative w-full overflow-hidden rounded-md ring-1",
+          onAir ? "ring-live/50" : "ring-border",
         )}
         style={{ aspectRatio: `${STAGE_W} / ${STAGE_H}` }}
       >
@@ -271,13 +281,16 @@ function Monitor({
             width={STAGE_W}
             height={STAGE_H}
             className="absolute top-0 left-0 border-0"
-            style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}
+            style={{
+              transform: `scale(${scale})`,
+              transformOrigin: "top left",
+            }}
           />
         ) : (
           <p className="text-text-inverse absolute inset-0 flex items-center justify-center px-6 text-center text-[0.8125rem]">
             {enabled
-              ? 'Sizing the monitor…'
-              : 'Monitors are standing by. Turn them on to see the live output.'}
+              ? "Sizing the monitor…"
+              : "Monitors are standing by. Turn them on to see the live output."}
           </p>
         )}
       </div>
@@ -286,7 +299,7 @@ function Monitor({
         <p className="text-ink text-[0.9375rem] font-semibold">{sceneLabel}</p>
         {detail.length > 0 ? (
           <p className="text-text-muted text-[0.75rem] leading-body break-words">
-            {detail.join(' · ')}
+            {detail.join(" · ")}
           </p>
         ) : (
           <p className="text-text-muted text-[0.75rem]">No payload.</p>
@@ -316,14 +329,18 @@ export default function DisplayControlPage() {
     refresh: refreshDisplay,
   } = useDisplayState();
 
-  const [selected, setSelected] = useState<DisplayScene>('holding');
-  const [draft, setDraft] = useState<Draft>(() => seedFrom('holding', {
-    programScene: 'holding',
-    programPayload: {},
-    previewScene: null,
-    previewPayload: {},
-  }));
-  const [targetOverride, setTargetOverride] = useState<DisplayTarget | null>(null);
+  const [selected, setSelected] = useState<DisplayScene>("holding");
+  const [draft, setDraft] = useState<Draft>(() =>
+    seedFrom("holding", {
+      programScene: "holding",
+      programPayload: {},
+      previewScene: null,
+      previewPayload: {},
+    }),
+  );
+  const [targetOverride, setTargetOverride] = useState<DisplayTarget | null>(
+    null,
+  );
   const [monitorsOn, setMonitorsOn] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const [confirmCut, setConfirmCut] = useState(false);
@@ -331,20 +348,25 @@ export default function DisplayControlPage() {
   // The live payloads, read by event handlers without making every callback
   // depend on objects that are re-created on each render.
   const sourcesRef = useRef<PayloadSources>({
-    programScene: 'holding',
+    programScene: "holding",
     programPayload: {},
     previewScene: null,
     previewPayload: {},
   });
 
   useEffect(() => {
-    sourcesRef.current = { programScene, programPayload, previewScene, previewPayload };
+    sourcesRef.current = {
+      programScene,
+      programPayload,
+      previewScene,
+      previewPayload,
+    };
   });
 
   // Rounds for every challenge: the snapshot only carries the current one, and
   // the operator has to be able to put any round in the show on the wall.
   const [rounds, setRounds] = useState<RoundRow[]>([]);
-  const challengeIds = snapshot?.challenges.map((c) => c.id).join(',') ?? '';
+  const challengeIds = snapshot?.challenges.map((c) => c.id).join(",") ?? "";
 
   useEffect(() => {
     if (!challengeIds) return;
@@ -352,7 +374,10 @@ export default function DisplayControlPage() {
 
     void (async () => {
       try {
-        const all = await getRoundsForChallenges(supabase(), challengeIds.split(','));
+        const all = await getRoundsForChallenges(
+          supabase(),
+          challengeIds.split(","),
+        );
         if (live) setRounds(all);
       } catch {
         // Without this the round picker is empty; every other control still
@@ -389,7 +414,8 @@ export default function DisplayControlPage() {
    * round belongs to, and this recomputes the moment the list lands.
    */
   const seededTarget = useMemo(
-    () => targetFromPayload(previewScene ? previewPayload : programPayload, rounds),
+    () =>
+      targetFromPayload(previewScene ? previewPayload : programPayload, rounds),
     [previewScene, previewPayload, programPayload, rounds],
   );
   const target = targetOverride ?? seededTarget;
@@ -399,9 +425,9 @@ export default function DisplayControlPage() {
 
   const playerName = useCallback(
     (id: string | null | undefined): string => {
-      if (!id) return 'Empty slot';
+      if (!id) return "Empty slot";
       const player = playersById[id];
-      return player?.display_name ?? player?.full_name ?? 'Unknown player';
+      return player?.display_name ?? player?.full_name ?? "Unknown player";
     },
     [playersById],
   );
@@ -449,9 +475,9 @@ export default function DisplayControlPage() {
     (field: ScenePayloadField, raw: unknown): string => {
       const value = String(raw);
       switch (field.kind) {
-        case 'player':
+        case "player":
           return playerOptions.find((o) => o.value === value)?.label ?? value;
-        case 'ceremonyPhase': {
+        case "ceremonyPhase": {
           const cue = CEREMONY_CUES.find((c) => c.phase === value);
           return cue ? `${cue.cue} ${cue.title}` : value;
         }
@@ -464,20 +490,29 @@ export default function DisplayControlPage() {
 
   /** The non-pin half of a payload, for the small print under a monitor. */
   const describePayload = useCallback(
-    (scene: DisplayScene | null, payload: Record<string, unknown>): string[] => {
+    (
+      scene: DisplayScene | null,
+      payload: Record<string, unknown>,
+    ): string[] => {
       if (!scene) return [];
       return SCENE_BY_ID[scene].fields
         .filter((field) => {
           if (PIN_KEYS.has(field.key)) return false;
           const value = payload[field.key];
-          return value !== undefined && value !== null && value !== '';
+          return value !== undefined && value !== null && value !== "";
         })
-        .map((field) => `${field.label}: ${describeValue(field, payload[field.key])}`);
+        .map(
+          (field) =>
+            `${field.label}: ${describeValue(field, payload[field.key])}`,
+        );
     },
     [describeValue],
   );
 
-  const scenePayload = useMemo(() => buildPayload(selected, draft), [selected, draft]);
+  const scenePayload = useMemo(
+    () => buildPayload(selected, draft),
+    [selected, draft],
+  );
   const draftPayload = useMemo(
     () => ({ ...scenePayload, ...targetPayload(target) }),
     [scenePayload, target],
@@ -488,7 +523,9 @@ export default function DisplayControlPage() {
   );
   const previewMissing = useMemo(
     () =>
-      previewScene ? missingFields(previewScene, previewPayload, previewTarget) : [],
+      previewScene
+        ? missingFields(previewScene, previewPayload, previewTarget)
+        : [],
     [previewScene, previewPayload, previewTarget],
   );
 
@@ -506,20 +543,22 @@ export default function DisplayControlPage() {
 
   async function loadPreview(): Promise<void> {
     if (draftMissing.length > 0) {
-      runner.setError(`${sceneTitle(selected)} still needs: ${draftMissing.join(', ')}.`);
+      runner.setError(
+        `${sceneTitle(selected)} still needs: ${draftMissing.join(", ")}.`,
+      );
       return;
     }
     const result = await runner.run(
       () =>
         setPreviewScene({
-          idempotencyKey: newIdempotencyKey('preview-set'),
+          idempotencyKey: newIdempotencyKey("preview-set"),
           deviceId,
           scene: selected,
           payload: draftPayload,
         }),
       {
         success: `${sceneTitle(selected)} is in preview — ${
-          target.kind === 'auto' ? 'following live' : describe(target)
+          target.kind === "auto" ? "following live" : describe(target)
         }.`,
       },
     );
@@ -528,17 +567,21 @@ export default function DisplayControlPage() {
 
   async function take(): Promise<void> {
     if (!previewScene) {
-      runner.setError('Nothing is loaded in preview.');
+      runner.setError("Nothing is loaded in preview.");
       return;
     }
     if (previewMissing.length > 0) {
       runner.setError(
-        `Preview is incomplete — ${previewMissing.join(', ')}. Fix it before taking it to air.`,
+        `Preview is incomplete — ${previewMissing.join(", ")}. Fix it before taking it to air.`,
       );
       return;
     }
     const result = await runner.run(
-      () => takePreviewLive({ idempotencyKey: newIdempotencyKey('display-take'), deviceId }),
+      () =>
+        takePreviewLive({
+          idempotencyKey: newIdempotencyKey("display-take"),
+          deviceId,
+        }),
       { success: `${sceneTitle(previewScene)} is on air.` },
     );
     if (result.ok) void refreshDisplay();
@@ -548,10 +591,10 @@ export default function DisplayControlPage() {
     const result = await runner.run(
       () =>
         clearPreviewScene({
-          idempotencyKey: newIdempotencyKey('preview-clear'),
+          idempotencyKey: newIdempotencyKey("preview-clear"),
           deviceId,
         }),
-      { success: 'Preview cleared.' },
+      { success: "Preview cleared." },
     );
     if (result.ok) void refreshDisplay();
   }
@@ -560,7 +603,7 @@ export default function DisplayControlPage() {
     const result = await runner.run(
       () =>
         setDisplayScene({
-          idempotencyKey: newIdempotencyKey('program-cut'),
+          idempotencyKey: newIdempotencyKey("program-cut"),
           deviceId,
           scene: selected,
           payload: draftPayload,
@@ -585,12 +628,38 @@ export default function DisplayControlPage() {
     const result = await runner.run(
       () =>
         setDisplayScene({
-          idempotencyKey: newIdempotencyKey('program-auto'),
+          idempotencyKey: newIdempotencyKey("program-auto"),
           deviceId,
-          scene: 'auto',
+          scene: "auto",
           payload: {},
         }),
-      { success: 'AUTO is on air — the wall is following the show again.' },
+      { success: "AUTO is on air — the wall is following the show again." },
+    );
+    if (result.ok) void refreshDisplay();
+  }
+
+  /**
+   * Call a cooling break, or restart the one already up.
+   *
+   * The end instant is stamped by the server, so the wall's countdown does not
+   * depend on the venue machine's clock and a wall that reloads mid-break
+   * rejoins the same one. Pressing it again simply replaces that instant —
+   * which is the whole of "restart", and why a second or third break in a day
+   * needs nothing cleared first.
+   */
+  async function callBreak(): Promise<void> {
+    const result = await runner.run(
+      () =>
+        startBreak({
+          idempotencyKey: newIdempotencyKey("display-break"),
+          deviceId,
+        }),
+      {
+        success:
+          programScene === "hydration_break"
+            ? "The break clock has been restarted — two minutes from now."
+            : "Two-minute break is on the wall.",
+      },
     );
     if (result.ok) void refreshDisplay();
   }
@@ -599,12 +668,12 @@ export default function DisplayControlPage() {
     const result = await runner.run(
       () =>
         setDisplayScene({
-          idempotencyKey: newIdempotencyKey('program-holding'),
+          idempotencyKey: newIdempotencyKey("program-holding"),
           deviceId,
-          scene: 'holding',
+          scene: "holding",
           payload: {},
         }),
-      { success: 'Holding screen is on air.' },
+      { success: "Holding screen is on air." },
     );
     if (result.ok) void refreshDisplay();
   }
@@ -620,12 +689,12 @@ export default function DisplayControlPage() {
     const result = await runner.run(
       () =>
         setDisplayScene({
-          idempotencyKey: newIdempotencyKey('program-follow-live'),
+          idempotencyKey: newIdempotencyKey("program-follow-live"),
           deviceId,
           scene: programScene,
           payload: withoutTarget(programPayload),
         }),
-      { success: 'The wall is following the live challenge and round again.' },
+      { success: "The wall is following the live challenge and round again." },
     );
     if (result.ok) {
       setTargetOverride(FOLLOW_LIVE);
@@ -638,7 +707,7 @@ export default function DisplayControlPage() {
   const descriptor = SCENE_BY_ID[selected];
   const programDetail = describePayload(programScene, programPayload);
   const previewDetail = describePayload(previewScene, previewPayload);
-  const eventLive = snapshot?.event.status === 'live';
+  const eventLive = snapshot?.event.status === "live";
   const targetChanged = !sameTarget(target, programTarget);
 
   return (
@@ -652,8 +721,8 @@ export default function DisplayControlPage() {
             <Link
               href="/admin/challenges"
               className={cn(
-                'bg-surface-raised text-ink ring-border hover:bg-mist',
-                'inline-flex h-10 items-center gap-2 rounded-md px-4 text-[0.8125rem] font-semibold ring-1',
+                "bg-surface-raised text-ink ring-border hover:bg-mist",
+                "inline-flex h-10 items-center gap-2 rounded-md px-4 text-[0.8125rem] font-semibold ring-1",
               )}
             >
               Challenges →
@@ -671,14 +740,18 @@ export default function DisplayControlPage() {
       {/* ---- Transmission bar: always visible, always usable ---- */}
       <div
         className={cn(
-          'bg-surface-raised shadow-card ring-border-subtle sticky top-[3.75rem] z-20',
-          'flex flex-wrap items-center justify-between gap-4 rounded-lg px-5 py-4 ring-1',
+          "bg-surface-raised shadow-card ring-border-subtle sticky top-[3.75rem] z-20",
+          "flex flex-wrap items-center justify-between gap-4 rounded-lg px-5 py-4 ring-1",
         )}
       >
         <div className="flex min-w-0 flex-wrap items-center gap-x-6 gap-y-3">
           <div className="min-w-0">
             <p className="u-eyebrow text-live text-eyebrow flex items-center gap-2">
-              <span aria-hidden className="animate-live-pulse" data-motion="loop">
+              <span
+                aria-hidden
+                className="animate-live-pulse"
+                data-motion="loop"
+              >
                 ●
               </span>
               On the wall now
@@ -687,7 +760,9 @@ export default function DisplayControlPage() {
               {sceneTitle(programScene)}
             </p>
             <p className="text-text-muted text-[0.75rem] leading-body break-words">
-              {programDetail.length > 0 ? programDetail.join(' · ') : 'No payload'}
+              {programDetail.length > 0
+                ? programDetail.join(" · ")
+                : "No payload"}
             </p>
           </div>
 
@@ -696,30 +771,32 @@ export default function DisplayControlPage() {
             <p className="u-eyebrow text-text-muted text-eyebrow">Looking at</p>
             <div className="flex flex-wrap items-center gap-2">
               <StatusPill
-                label={programPinned ? 'PINNED — MANUAL' : 'FOLLOWING LIVE'}
-                tone={programPinned ? 'draw' : 'accent'}
-                glyph={programPinned ? '⚑' : '↻'}
+                label={programPinned ? "PINNED — MANUAL" : "FOLLOWING LIVE"}
+                tone={programPinned ? "draw" : "accent"}
+                glyph={programPinned ? "⚑" : "↻"}
                 size="sm"
               />
             </div>
             <p className="text-ink mt-0.5 max-w-md text-[0.8125rem] leading-body break-words">
               {programPinned
                 ? describe(programTarget)
-                : (autoDescription ?? 'Nothing is live yet.')}
+                : (autoDescription ?? "Nothing is live yet.")}
             </p>
           </div>
 
           <div className="min-w-0">
-            <p className="u-eyebrow text-text-muted text-eyebrow">Lined up in preview</p>
+            <p className="u-eyebrow text-text-muted text-eyebrow">
+              Lined up in preview
+            </p>
             <p className="text-ink truncate text-[1.0625rem] font-semibold">
-              {previewScene ? sceneTitle(previewScene) : 'Nothing'}
+              {previewScene ? sceneTitle(previewScene) : "Nothing"}
             </p>
             <p className="text-text-muted text-[0.75rem] leading-body break-words">
               {previewScene
                 ? previewPinned
                   ? describe(previewTarget)
-                  : 'Following live'
-                : 'Load a scene below.'}
+                  : "Following live"
+                : "Load a scene below."}
             </p>
           </div>
         </div>
@@ -737,11 +814,11 @@ export default function DisplayControlPage() {
           <AdminButton
             variant="primary"
             size="lg"
-            disabled={programScene === 'auto'}
+            disabled={programScene === "auto"}
             title={
-              programScene === 'auto'
-                ? 'AUTO is already on air.'
-                : 'Puts the wall back on AUTO immediately — it follows the show by itself.'
+              programScene === "auto"
+                ? "AUTO is already on air."
+                : "Puts the wall back on AUTO immediately — it follows the show by itself."
             }
             onClick={() => void goToAuto()}
           >
@@ -753,12 +830,27 @@ export default function DisplayControlPage() {
             disabled={!programPinned}
             title={
               programPinned
-                ? 'Clears the pin so the wall follows the live challenge and round again.'
-                : 'The wall is already following live.'
+                ? "Clears the pin so the wall follows the live challenge and round again."
+                : "The wall is already following live."
             }
             onClick={() => void followLive()}
           >
             FOLLOW LIVE
+          </AdminButton>
+          <AdminButton
+            variant="secondary"
+            size="lg"
+            busy={runner.pending}
+            title={
+              programScene === "hydration_break"
+                ? "Restarts the break clock — a fresh two minutes from now."
+                : "Puts a two-minute cooling break clock on the wall."
+            }
+            onClick={() => void callBreak()}
+          >
+            {programScene === "hydration_break"
+              ? "RESTART BREAK"
+              : "CALL BREAK"}
           </AdminButton>
           <AdminButton
             variant="danger"
@@ -772,21 +864,22 @@ export default function DisplayControlPage() {
       </div>
 
       {runner.status ? (
-        <Callout tone={runner.status.tone === 'ok' ? 'success' : 'danger'}>
+        <Callout tone={runner.status.tone === "ok" ? "success" : "danger"}>
           {runner.status.message}
         </Callout>
       ) : null}
 
       {displayError ? (
         <Callout tone="warning" title="The display row could not be read">
-          {displayError} What is printed above is the last state this console confirmed.
+          {displayError} What is printed above is the last state this console
+          confirmed.
         </Callout>
       ) : null}
 
       {previewScene && previewMissing.length > 0 ? (
         <Callout tone="warning" title="Preview is not ready to go to air">
-          {sceneTitle(previewScene)} is missing {previewMissing.join(', ')}. Re-load it below
-          with the missing value filled in.
+          {sceneTitle(previewScene)} is missing {previewMissing.join(", ")}.
+          Re-load it below with the missing value filled in.
         </Callout>
       ) : null}
 
@@ -796,9 +889,11 @@ export default function DisplayControlPage() {
         description="Pick the challenge and the round yourself. This travels with the scene into preview and on to air, and it beats anything the wall would work out on its own."
         actions={
           <StatusPill
-            label={target.kind === 'auto' ? 'DRAFT — FOLLOW LIVE' : 'DRAFT — PINNED'}
-            tone={target.kind === 'auto' ? 'accent' : 'draw'}
-            glyph={target.kind === 'auto' ? '↻' : '⚑'}
+            label={
+              target.kind === "auto" ? "DRAFT — FOLLOW LIVE" : "DRAFT — PINNED"
+            }
+            tone={target.kind === "auto" ? "accent" : "draw"}
+            glyph={target.kind === "auto" ? "↻" : "⚑"}
             size="sm"
           />
         }
@@ -818,16 +913,20 @@ export default function DisplayControlPage() {
 
           {targetChanged ? (
             <Callout tone="info" title="This is not on the wall yet">
-              The wall is {programPinned ? `pinned to ${describe(programTarget)}` : 'following live'}.
-              What you have picked here goes out with the next Load into preview → TAKE LIVE,
-              or with Cut straight to air.
+              The wall is{" "}
+              {programPinned
+                ? `pinned to ${describe(programTarget)}`
+                : "following live"}
+              . What you have picked here goes out with the next Load into
+              preview → TAKE LIVE, or with Cut straight to air.
             </Callout>
           ) : null}
 
           {challenges.length > 0 && rounds.length === 0 ? (
             <Callout tone="warning" title="No rounds could be read">
-              The challenge list is available but its rounds are not, so only whole challenges
-              can be pinned. Reload the page once the connection recovers.
+              The challenge list is available but its rounds are not, so only
+              whole challenges can be pinned. Reload the page once the
+              connection recovers.
             </Callout>
           ) : null}
         </div>
@@ -850,11 +949,15 @@ export default function DisplayControlPage() {
             src="/tv/preview"
             reloadKey={reloadKey}
             enabled={monitorsOn}
-            sceneLabel={previewScene ? sceneTitle(previewScene) : 'Nothing in preview'}
+            sceneLabel={
+              previewScene ? sceneTitle(previewScene) : "Nothing in preview"
+            }
             detail={
               previewScene
                 ? [
-                    previewPinned ? `Pinned: ${describe(previewTarget)}` : 'Following live',
+                    previewPinned
+                      ? `Pinned: ${describe(previewTarget)}`
+                      : "Following live",
                     ...previewDetail,
                   ]
                 : previewDetail
@@ -868,7 +971,9 @@ export default function DisplayControlPage() {
             enabled={monitorsOn}
             sceneLabel={sceneTitle(programScene)}
             detail={[
-              programPinned ? `Pinned: ${describe(programTarget)}` : 'Following live',
+              programPinned
+                ? `Pinned: ${describe(programTarget)}`
+                : "Following live",
               ...programDetail,
             ]}
           />
@@ -887,7 +992,9 @@ export default function DisplayControlPage() {
               const active = scene.scene === selected;
               const onAir = scene.scene === programScene;
               const inPreview = scene.scene === previewScene;
-              const ownFields = scene.fields.filter((f) => !PIN_KEYS.has(f.key));
+              const ownFields = scene.fields.filter(
+                (f) => !PIN_KEYS.has(f.key),
+              );
               const usesPin = scene.fields.length !== ownFields.length;
 
               return (
@@ -897,20 +1004,20 @@ export default function DisplayControlPage() {
                     aria-pressed={active}
                     onClick={() => selectScene(scene.scene)}
                     className={cn(
-                      'flex w-full items-start gap-4 px-5 py-3.5 text-left',
-                      'transition-colors duration-[var(--dur-instant)]',
-                      active ? 'bg-aqua-100' : 'hover:bg-mist',
+                      "flex w-full items-start gap-4 px-5 py-3.5 text-left",
+                      "transition-colors duration-[var(--dur-instant)]",
+                      active ? "bg-aqua-100" : "hover:bg-mist",
                     )}
                   >
                     <span
                       aria-hidden
                       className={cn(
-                        'u-tabular font-numeral mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-md text-[0.8125rem]',
+                        "u-tabular font-numeral mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-md text-[0.8125rem]",
                         onAir
-                          ? 'bg-live text-white'
+                          ? "bg-live text-white"
                           : active
-                            ? 'bg-aqua-700 text-white'
-                            : 'bg-mist text-text-secondary',
+                            ? "bg-aqua-700 text-white"
+                            : "bg-mist text-text-secondary",
                       )}
                     >
                       {scene.cue}
@@ -925,10 +1032,18 @@ export default function DisplayControlPage() {
                           <StatusPill label="ON AIR" tone="live" size="sm" />
                         ) : null}
                         {inPreview ? (
-                          <StatusPill label="IN PREVIEW" tone="neutral" size="sm" />
+                          <StatusPill
+                            label="IN PREVIEW"
+                            tone="neutral"
+                            size="sm"
+                          />
                         ) : null}
                         {active && !onAir && !inPreview ? (
-                          <StatusPill label="SELECTED" tone="accent" size="sm" />
+                          <StatusPill
+                            label="SELECTED"
+                            tone="accent"
+                            size="sm"
+                          />
                         ) : null}
                       </span>
                       <span className="text-text-muted mt-0.5 block text-[0.75rem] leading-body">
@@ -936,11 +1051,13 @@ export default function DisplayControlPage() {
                       </span>
                       {ownFields.length > 0 || usesPin ? (
                         <span className="u-label text-text-muted mt-1.5 block text-[0.625rem]">
-                          Needs:{' '}
+                          Needs:{" "}
                           {[
-                            ...(usesPin ? ['the challenge / round above'] : []),
-                            ...ownFields.map((f) => (f.required ? `${f.label}*` : f.label)),
-                          ].join(' · ')}
+                            ...(usesPin ? ["the challenge / round above"] : []),
+                            ...ownFields.map((f) =>
+                              f.required ? `${f.label}*` : f.label,
+                            ),
+                          ].join(" · ")}
                         </span>
                       ) : null}
                     </span>
@@ -964,8 +1081,8 @@ export default function DisplayControlPage() {
                   This scene will look at
                 </p>
                 <p className="text-ink text-[0.875rem] font-semibold break-words">
-                  {target.kind === 'auto'
-                    ? `Whatever is live${autoDescription ? ` — now ${autoDescription}` : ''}`
+                  {target.kind === "auto"
+                    ? `Whatever is live${autoDescription ? ` — now ${autoDescription}` : ""}`
                     : describe(target)}
                 </p>
                 <p className="text-text-muted mt-1 text-[0.75rem] leading-body">
@@ -973,7 +1090,8 @@ export default function DisplayControlPage() {
                 </p>
               </div>
 
-              {descriptor.fields.filter((f) => !PIN_KEYS.has(f.key)).length === 0 ? (
+              {descriptor.fields.filter((f) => !PIN_KEYS.has(f.key)).length ===
+              0 ? (
                 <p className="text-text-secondary text-[0.8125rem] leading-body">
                   This scene takes nothing else. Load it and take it.
                 </p>
@@ -982,19 +1100,22 @@ export default function DisplayControlPage() {
                   .filter((field) => !PIN_KEYS.has(field.key))
                   .map((field) => {
                     const id = `scene-field-${selected}-${field.key}`;
-                    const value = draft[field.key] ?? '';
-                    const missing = Boolean(field.required) && value.trim() === '';
+                    const value = draft[field.key] ?? "";
+                    const missing =
+                      Boolean(field.required) && value.trim() === "";
 
                     const hint = field.hint ?? undefined;
-                    const error = missing ? 'This scene will not go to air without it.' : null;
+                    const error = missing
+                      ? "This scene will not go to air without it."
+                      : null;
 
-                    if (field.kind === 'boolean') {
+                    if (field.kind === "boolean") {
                       return (
                         <Toggle
                           key={field.key}
-                          checked={value === 'true'}
+                          checked={value === "true"}
                           onCheckedChange={(checked) =>
-                            patch(field.key, checked ? 'true' : 'false')
+                            patch(field.key, checked ? "true" : "false")
                           }
                           label={field.label}
                           description={hint}
@@ -1002,39 +1123,56 @@ export default function DisplayControlPage() {
                       );
                     }
 
-                    if (field.kind === 'number') {
+                    if (field.kind === "number") {
                       return (
-                        <Field key={field.key} label={field.label} htmlFor={id} hint={hint} error={error}>
+                        <Field
+                          key={field.key}
+                          label={field.label}
+                          htmlFor={id}
+                          hint={hint}
+                          error={error}
+                        >
                           <NumberInput
                             id={id}
-                            value={value === '' ? null : Number(value)}
+                            value={value === "" ? null : Number(value)}
                             min={field.min}
                             max={field.max}
                             invalid={missing}
                             onValueChange={(next) =>
-                              patch(field.key, next === null ? '' : String(next))
+                              patch(
+                                field.key,
+                                next === null ? "" : String(next),
+                              )
                             }
                           />
                         </Field>
                       );
                     }
 
-                    if (field.kind === 'text') {
+                    if (field.kind === "text") {
                       return (
-                        <Field key={field.key} label={field.label} htmlFor={id} hint={hint} error={error}>
+                        <Field
+                          key={field.key}
+                          label={field.label}
+                          htmlFor={id}
+                          hint={hint}
+                          error={error}
+                        >
                           <TextInput
                             id={id}
                             value={value}
                             maxLength={160}
                             invalid={missing}
-                            onChange={(event) => patch(field.key, event.target.value)}
+                            onChange={(event) =>
+                              patch(field.key, event.target.value)
+                            }
                           />
                         </Field>
                       );
                     }
 
                     const options =
-                      field.kind === 'player'
+                      field.kind === "player"
                         ? playerOptions
                         : CEREMONY_CUES.map((cue) => ({
                             value: cue.phase,
@@ -1047,7 +1185,7 @@ export default function DisplayControlPage() {
                         label={field.label}
                         htmlFor={id}
                         hint={
-                          field.kind === 'ceremonyPhase' && value
+                          field.kind === "ceremonyPhase" && value
                             ? `TV renders phase “${resolveCeremonyPhase(value)}”. Drive the sequence from the Ceremony screen.`
                             : hint
                         }
@@ -1057,10 +1195,12 @@ export default function DisplayControlPage() {
                           id={id}
                           value={value}
                           invalid={missing}
-                          onChange={(event) => patch(field.key, event.target.value)}
+                          onChange={(event) =>
+                            patch(field.key, event.target.value)
+                          }
                         >
                           <option value="">
-                            {field.required ? 'Choose one…' : 'None'}
+                            {field.required ? "Choose one…" : "None"}
                           </option>
                           {options.map((option) => (
                             <option key={option.value} value={option.value}>
@@ -1075,7 +1215,7 @@ export default function DisplayControlPage() {
 
               {draftMissing.length > 0 ? (
                 <Callout tone="warning" title="Not ready for preview">
-                  Missing: {draftMissing.join(', ')}.
+                  Missing: {draftMissing.join(", ")}.
                 </Callout>
               ) : null}
 
@@ -1097,10 +1237,13 @@ export default function DisplayControlPage() {
               </ButtonRow>
 
               <div className="border-border-subtle space-y-3 border-t pt-4">
-                <SectionHeading hint="Skips preview entirely">Cut straight to air</SectionHeading>
+                <SectionHeading hint="Skips preview entirely">
+                  Cut straight to air
+                </SectionHeading>
                 <p className="text-text-muted text-[0.75rem] leading-body">
-                  The room sees this the instant you confirm it, with no chance to check it
-                  first. Use TAKE LIVE unless something has gone wrong.
+                  The room sees this the instant you confirm it, with no chance
+                  to check it first. Use TAKE LIVE unless something has gone
+                  wrong.
                 </p>
                 <AdminButton
                   variant="danger"
@@ -1113,50 +1256,73 @@ export default function DisplayControlPage() {
             </div>
           </Panel>
 
-          <Panel title="Display state" description="Read straight from the display row.">
+          <Panel
+            title="Display state"
+            description="Read straight from the display row."
+          >
             <dl className="grid gap-4 sm:grid-cols-2">
               <div className="min-w-0 space-y-1">
-                <dt className="u-label text-text-muted text-eyebrow">Program</dt>
-                <dd className="text-ink text-[0.9375rem]">{sceneTitle(programScene)}</dd>
-              </div>
-              <div className="min-w-0 space-y-1">
-                <dt className="u-label text-text-muted text-eyebrow">Preview</dt>
+                <dt className="u-label text-text-muted text-eyebrow">
+                  Program
+                </dt>
                 <dd className="text-ink text-[0.9375rem]">
-                  {previewScene ? sceneTitle(previewScene) : '—'}
+                  {sceneTitle(programScene)}
                 </dd>
               </div>
               <div className="min-w-0 space-y-1">
-                <dt className="u-label text-text-muted text-eyebrow">Program pin</dt>
+                <dt className="u-label text-text-muted text-eyebrow">
+                  Preview
+                </dt>
+                <dd className="text-ink text-[0.9375rem]">
+                  {previewScene ? sceneTitle(previewScene) : "—"}
+                </dd>
+              </div>
+              <div className="min-w-0 space-y-1">
+                <dt className="u-label text-text-muted text-eyebrow">
+                  Program pin
+                </dt>
                 <dd className="text-ink text-[0.9375rem] break-words">
-                  {programPinned ? describe(programTarget) : 'None — following live'}
+                  {programPinned
+                    ? describe(programTarget)
+                    : "None — following live"}
                 </dd>
               </div>
               <div className="min-w-0 space-y-1">
-                <dt className="u-label text-text-muted text-eyebrow">Ceremony phase</dt>
+                <dt className="u-label text-text-muted text-eyebrow">
+                  Ceremony phase
+                </dt>
                 <dd className="text-ink text-[0.9375rem]">
-                  {displayState?.ceremony_phase ?? 'Not started'}
+                  {displayState?.ceremony_phase ?? "Not started"}
                 </dd>
               </div>
               <div className="min-w-0 space-y-1">
-                <dt className="u-label text-text-muted text-eyebrow">Revision</dt>
+                <dt className="u-label text-text-muted text-eyebrow">
+                  Revision
+                </dt>
                 <dd className="u-tabular font-numeral text-ink text-[0.9375rem]">
-                  {displayState?.revision ?? '—'}
+                  {displayState?.revision ?? "—"}
                 </dd>
               </div>
             </dl>
 
             <p className="text-text-muted mt-4 text-[0.75rem] leading-body">
-              A challenge that will not leave the wall is usually a challenge nobody closed —
-              end it on{' '}
-              <Link href="/admin/challenges" className="text-aqua-800 hover:text-aqua-900 underline underline-offset-2">
+              A challenge that will not leave the wall is usually a challenge
+              nobody closed — end it on{" "}
+              <Link
+                href="/admin/challenges"
+                className="text-aqua-800 hover:text-aqua-900 underline underline-offset-2"
+              >
                 Challenges
               </Link>
-              . The closing sequence is driven from{' '}
-              <Link href="/admin/ceremony" className="text-aqua-800 hover:text-aqua-900 underline underline-offset-2">
+              . The closing sequence is driven from{" "}
+              <Link
+                href="/admin/ceremony"
+                className="text-aqua-800 hover:text-aqua-900 underline underline-offset-2"
+              >
                 Ceremony
               </Link>
-              , which keeps the cues in order. Cutting ceremony phases from here can reveal the
-              champion before the runner-up.
+              , which keeps the cues in order. Cutting ceremony phases from here
+              can reveal the champion before the runner-up.
             </p>
           </Panel>
         </div>
@@ -1167,8 +1333,8 @@ export default function DisplayControlPage() {
         title={`Cut ${descriptor.title} straight to air?`}
         description={
           eventLive
-            ? 'The event is LIVE. This replaces what the room is watching immediately, without a preview check.'
-            : 'This replaces the program output immediately, without a preview check.'
+            ? "The event is LIVE. This replaces what the room is watching immediately, without a preview check."
+            : "This replaces the program output immediately, without a preview check."
         }
         confirmLabel="Cut to air"
         confirmWord="CUT"
@@ -1179,18 +1345,21 @@ export default function DisplayControlPage() {
       >
         <div className="ring-border-subtle rounded-md px-4 py-3 ring-1">
           <p className="u-label text-text-muted text-eyebrow">Going on air</p>
-          <p className="text-ink text-[0.9375rem] font-semibold">{descriptor.title}</p>
+          <p className="text-ink text-[0.9375rem] font-semibold">
+            {descriptor.title}
+          </p>
           <p className="text-text-muted text-[0.75rem] leading-body">
-            {target.kind === 'auto'
-              ? 'Following live'
+            {target.kind === "auto"
+              ? "Following live"
               : `Pinned to ${describe(target)}`}
             {describePayload(selected, draftPayload).length > 0
-              ? ` · ${describePayload(selected, draftPayload).join(' · ')}`
+              ? ` · ${describePayload(selected, draftPayload).join(" · ")}`
               : null}
           </p>
           <p className="text-text-muted mt-2 text-[0.75rem] leading-body">
-            Recorded in the audit log as <code>display.program_set</code>, against your name and
-            this device, with the scene that was on air before it.
+            Recorded in the audit log as <code>display.program_set</code>,
+            against your name and this device, with the scene that was on air
+            before it.
           </p>
         </div>
       </ConfirmDialog>

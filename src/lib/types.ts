@@ -50,7 +50,9 @@ export type DisplayScene =
   | 'leaderboard'
   | 'ceremony'
   // One player's walk-out card; `payload.playerId` names who is on screen.
-  | 'player_entrance';
+  | 'player_entrance'
+  // A called break, counting down; `payload.endsAt` says when it ends.
+  | 'hydration_break';
 
 // --------------------------------------------------------------------
 // Scoring profile — the single source of truth for every point value.

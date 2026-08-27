@@ -287,6 +287,14 @@ export interface SetLineupSlotResult {
   displacedSlotId: string | null;
 }
 
+/** Call a cooling break. The end instant is stamped server-side. */
+export interface StartBreakInput extends CommandBase {
+  /** Defaults to two minutes. */
+  durationMs?: number;
+  /** Overrides the "HYDRATION BREAK" headline. */
+  headline?: string;
+}
+
 export interface DisplaySceneInput extends CommandBase {
   scene: DisplayScene;
   payload?: Record<string, unknown>;
